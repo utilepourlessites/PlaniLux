@@ -2,102 +2,105 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight, Lock, Mail, Shield, Sparkles, UserRound,
-} from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase-client";
+import { ArrowRight, Lock, Mail, UserRound } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import "@/app/landing.css";
 
-export function LoginView() {
+type Mode = "login" | "signup" | "forgot";
+type Notice = { kind: "error" | "info"; text: string };
+
+const URL_ERRORS: Record<string, string> = {
+  auth: "Le lien de connexion est invalide ou a expiré. Veuillez réessayer.",
+  reset: "Le lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.",
+};
+
+/** Messages génériques : on ne révèle jamais si une adresse e-mail possède déjà un compte. */
+function friendlyAuthError(code: string | undefined): string {
+  switch (code) {
+    case "invalid_credentials": return "Adresse e-mail ou mot de passe incorrect.";
+    case "email_not_confirmed": return "Confirmez d’abord votre adresse e-mail grâce au lien reçu par message.";
+    case "weak_password": return "Mot de passe trop faible : 8 caractères minimum, de préférence variés.";
+    case "over_email_send_rate_limit":
+    case "over_request_rate_limit": return "Trop de tentatives. Réessayez dans quelques minutes.";
+    default: return "Une erreur est survenue. Veuillez réessayer.";
+  }
+}
+
+export function LoginView({ initialMode = "login", initialError }: { initialMode?: "login" | "signup"; initialError?: string }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("mode") === "signup") {
-        return "signup";
-      }
-    }
-    return "login";
-  });
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(
+    initialError && URL_ERRORS[initialError] ? { kind: "error", text: URL_ERRORS[initialError] } : null,
+  );
+
+  const switchMode = (next: Mode) => { setMode(next); setNotice(null); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setFeedback("Veuillez remplir votre email et votre mot de passe.");
+    const cleanEmail = email.trim();
+    if (!cleanEmail || (mode !== "forgot" && !password)) {
+      setNotice({ kind: "error", text: "Veuillez remplir tous les champs." });
       return;
     }
+    if (mode === "signup" && password.length < 8) {
+      setNotice({ kind: "error", text: "Le mot de passe doit contenir au moins 8 caractères." });
+      return;
+    }
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setNotice({ kind: "error", text: "Le service d’authentification n’est pas configuré." });
+      return;
+    }
+
     setBusy(true);
-    setFeedback("");
-
-    const supabase = getSupabaseClient();
-
+    setNotice(null);
     try {
-      if (supabase) {
-        if (mode === "signup") {
-          const { data, error } = await supabase.auth.signUp({
-            email: email.trim(),
-            password: password.trim(),
-            options: {
-              data: {
-                full_name: name.trim() || undefined,
-              },
-            },
-          });
-          if (error) {
-            setFeedback(error.message);
-            setBusy(false);
-            return;
-          }
-          if (data.user) {
-            const displayName = name.trim() || data.user.user_metadata?.full_name || email.split("@")[0];
-            try { window.localStorage.setItem("planilux-user-name", displayName); } catch {}
-          }
-        } else {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password: password.trim(),
-          });
-          if (error) {
-            setFeedback(error.message);
-            setBusy(false);
-            return;
-          }
-          if (data.user) {
-            const displayName = data.user.user_metadata?.full_name || email.split("@")[0];
-            const formatted = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-            try { window.localStorage.setItem("planilux-user-name", formatted); } catch {}
-          }
+      const origin = window.location.origin;
+      if (mode === "forgot") {
+        await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: `${origin}/auth/callback?next=/auth/reset`,
+        });
+        setNotice({ kind: "info", text: "Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé." });
+        return;
+      }
+
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: { full_name: name.trim() || undefined },
+            emailRedirectTo: `${origin}/auth/callback`,
+          },
+        });
+        if (error) { setNotice({ kind: "error", text: friendlyAuthError(error.code) }); return; }
+        if (!data.session) {
+          // Confirmation par e-mail requise : pas de session tant que le lien n’est pas ouvert.
+          setNotice({ kind: "info", text: "Compte créé. Vérifiez votre boîte mail et cliquez sur le lien de confirmation pour vous connecter." });
+          return;
         }
       } else {
-        // Mode hors-ligne / fallback local
-        if (mode === "signup" && name.trim()) {
-          try { window.localStorage.setItem("planilux-user-name", name.trim()); } catch {}
-        } else if (!window.localStorage.getItem("planilux-user-name")) {
-          try {
-            const userPrefix = email.split("@")[0] || "Camille";
-            const formatted = userPrefix.charAt(0).toUpperCase() + userPrefix.slice(1);
-            window.localStorage.setItem("planilux-user-name", formatted);
-          } catch {}
-        }
+        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+        if (error) { setNotice({ kind: "error", text: friendlyAuthError(error.code) }); return; }
       }
 
       router.push("/app");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Une erreur inattendue est survenue.";
-      setFeedback(message);
+      router.refresh();
+    } catch {
+      setNotice({ kind: "error", text: "Une erreur inattendue est survenue. Veuillez réessayer." });
     } finally {
       setBusy(false);
     }
   };
 
-  const handleGuestAccess = () => {
-    router.push("/app");
+  const titles: Record<Mode, { h: string; p: string; cta: string }> = {
+    login: { h: "Connexion", p: "Retrouvez vos plannings et votre espace de travail.", cta: "Se connecter" },
+    signup: { h: "Créer un compte", p: "Rejoignez PlaniLux pour composer vos semaines en toute sérénité.", cta: "Créer mon compte" },
+    forgot: { h: "Mot de passe oublié", p: "Saisissez votre adresse e-mail : nous vous enverrons un lien pour en choisir un nouveau.", cta: "Envoyer le lien" },
   };
 
   return (
@@ -110,36 +113,34 @@ export function LoginView() {
               <span className="landing-logo-sub" style={{ fontSize: 14, letterSpacing: "0.5px", marginTop: 4 }}>Studio de planning</span>
             </div>
           </div>
-          <h1>{mode === "login" ? "Connexion" : "Créer un compte"}</h1>
-          <p>
-            {mode === "login"
-              ? "Retrouve tes plannings et ton espace de travail."
-              : "Rejoins PlaniLux pour composer tes semaines en toute sérénité."}
-          </p>
+          <h1>{titles[mode].h}</h1>
+          <p>{titles[mode].p}</p>
         </div>
 
-        <div className="auth-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={mode === "login"}
-            className={`auth-tab-btn ${mode === "login" ? "is-active" : ""}`}
-            onClick={() => { setMode("login"); setFeedback(""); }}
-          >
-            Se connecter
-          </button>
-          <button
-            role="tab"
-            aria-selected={mode === "signup"}
-            className={`auth-tab-btn ${mode === "signup" ? "is-active" : ""}`}
-            onClick={() => { setMode("signup"); setFeedback(""); }}
-          >
-            Créer un compte
-          </button>
-        </div>
+        {mode !== "forgot" && (
+          <div className="auth-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={mode === "login"} className={`auth-tab-btn ${mode === "login" ? "is-active" : ""}`} onClick={() => switchMode("login")}>
+              Se connecter
+            </button>
+            <button type="button" role="tab" aria-selected={mode === "signup"} className={`auth-tab-btn ${mode === "signup" ? "is-active" : ""}`} onClick={() => switchMode("signup")}>
+              Créer un compte
+            </button>
+          </div>
+        )}
 
-        {feedback && (
-          <div style={{ color: "#c45b56", fontSize: 11, marginBottom: 12, padding: "8px 10px", background: "rgba(196,91,86,0.06)", borderRadius: 7 }}>
-            {feedback}
+        {notice && (
+          <div
+            role={notice.kind === "error" ? "alert" : "status"}
+            style={{
+              color: notice.kind === "error" ? "#c45b56" : "#3f7d5c",
+              fontSize: 12,
+              marginBottom: 12,
+              padding: "8px 10px",
+              background: notice.kind === "error" ? "rgba(196,91,86,0.06)" : "rgba(63,125,92,0.08)",
+              borderRadius: 7,
+            }}
+          >
+            {notice.text}
           </div>
         )}
 
@@ -149,81 +150,47 @@ export function LoginView() {
               <label htmlFor="auth-name">Nom complet ou prénom</label>
               <div className="auth-input-wrap">
                 <UserRound size={16} className="auth-input-icon" />
-                <input
-                  id="auth-name"
-                  type="text"
-                  className="auth-input"
-                  placeholder="Ex : Camille Moreau"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required={mode === "signup"}
-                />
+                <input id="auth-name" type="text" className="auth-input" placeholder="Ex : Camille Moreau" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
             </div>
           )}
 
           <div className="auth-field">
-            <label htmlFor="auth-email">Adresse email</label>
+            <label htmlFor="auth-email">Adresse e-mail</label>
             <div className="auth-input-wrap">
               <Mail size={16} className="auth-input-icon" />
-              <input
-                id="auth-email"
-                type="email"
-                className="auth-input"
-                placeholder="nom@exemple.fr"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <input id="auth-email" type="email" className="auth-input" placeholder="nom@exemple.fr" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
           </div>
 
-          <div className="auth-field">
-            <label htmlFor="auth-password">Mot de passe</label>
-            <div className="auth-input-wrap">
-              <Lock size={16} className="auth-input-icon" />
-              <input
-                id="auth-password"
-                type="password"
-                className="auth-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+          {mode !== "forgot" && (
+            <div className="auth-field">
+              <label htmlFor="auth-password">Mot de passe</label>
+              <div className="auth-input-wrap">
+                <Lock size={16} className="auth-input-icon" />
+                <input id="auth-password" type="password" className="auth-input" placeholder="••••••••" autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="auth-options-row">
-            <label className="auth-remember">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              <span>Se souvenir de moi</span>
-            </label>
             {mode === "login" && (
-              <a href="#reset" onClick={(e) => { e.preventDefault(); alert("Un lien de réinitialisation vous sera envoyé sur votre adresse email."); }} className="auth-link-quiet">
+              <button type="button" onClick={() => switchMode("forgot")} className="auth-link-quiet" style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}>
                 Mot de passe oublié ?
-              </a>
+              </button>
+            )}
+            {mode === "forgot" && (
+              <button type="button" onClick={() => switchMode("login")} className="auth-link-quiet" style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}>
+                Retour à la connexion
+              </button>
             )}
           </div>
 
           <button type="submit" className="btn-auth-submit" disabled={busy}>
-            {busy ? "Accès à l’espace…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
+            {busy ? "Un instant…" : titles[mode].cta}
             <ArrowRight size={15} />
           </button>
         </form>
-
-        <div className="auth-divider">
-          <span>ou</span>
-        </div>
-
-        <button className="btn-guest-access" onClick={handleGuestAccess} type="button">
-          <Shield size={15} color="#8c7dc8" />
-          Continuer en mode invité (100% hors-ligne)
-        </button>
 
         <div className="auth-footer-note">
           <span>© 2026 PlaniLux · Vos journées bien ordonnées.</span>

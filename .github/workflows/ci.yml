@@ -2,9 +2,9 @@ name: CI PlaniLux
 
 on:
   push:
-    branches: [ "main", "feat/**" ]
+    branches: ["main", "feat/**", "chore/**", "fix/**"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,27 +12,27 @@ concurrency:
 
 jobs:
   validate:
-    name: Lint, Typecheck & Build
+    name: Lint, types, tests et build
     runs-on: ubuntu-latest
-
+    env:
+      # Valeurs factices : le build n'a besoin d'aucun secret.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
     steps:
-      - name: Récupérer le code source
-        uses: actions/checkout@v4
-
-      - name: Configurer Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "npm"
-
-      - name: Installer les dépendances
-        run: npm ci
-
-      - name: Vérifier ESLint (0 erreur)
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ESLint
         run: npm run lint
-
-      - name: Vérifier TypeScript (0 erreur)
+      - name: TypeScript
         run: npm run typecheck
-
-      - name: Compiler le projet Next.js (sans DATABASE_URL requise)
+      - name: Tests
+        run: npm test
+      - name: Build Next.js
         run: npm run build
+      - name: Audit des dépendances (informatif)
+        run: npm audit --audit-level=high
+        continue-on-error: true

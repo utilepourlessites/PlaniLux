@@ -2,7 +2,7 @@
 
 PlaniLux est une application web moderne et progressive (PWA) conçue pour composer, personnaliser et exporter des emplois du temps et plannings professionnels au quart d’heure près.
 
-L’application privilégie une approche **Local-First** : les plannings sont conservés localement sur le poste de travail pour une réactivité immédiate et un fonctionnement hors-ligne continu, tout en offrant la possibilité d’une synchronisation cloud avec PostgreSQL / Supabase.
+Chaque utilisateur possède un compte (Supabase Auth) et ses propres plannings, protégés par la sécurité par ligne (RLS) de PostgreSQL. Une copie locale sert de cache pour la réactivité ; le serveur fait foi.
 
 ---
 
@@ -24,7 +24,7 @@ L’application privilégie une approche **Local-First** : les plannings sont co
   - Ajustement dynamique de la taille des écrits (de 75 % à 150 %)
   - Contrôle fin de la luminosité (de 50 % à 150 %)
   - Bascule instantanée entre le thème clair et le thème sombre
-- **Local-First & Confidentialité** : fonctionnement hors ligne sans dépendance réseau bloquante.
+- **Comptes & confidentialité** : chaque personne ne voit que ses propres plannings (RLS).
 
 ---
 
@@ -34,74 +34,35 @@ L’application privilégie une approche **Local-First** : les plannings sont co
 - **Bibliothèque UI** : [React](https://react.dev/) 19 & [Tailwind CSS](https://tailwindcss.com/)
 - **Langage** : [TypeScript](https://www.typescriptlang.org/) (mode strict)
 - **Exports documentaires** : [jsPDF](https://github.com/parallax/jsPDF), [docx](https://docx.js.org/), [html-to-image](https://github.com/bubkoo/html-to-image)
-- **Base de données & ORM** : [PostgreSQL](https://www.postgresql.org/), [Drizzle ORM](https://orm.drizzle.team/), [Supabase](https://supabase.com/)
+- **Authentification & base de données** : [Supabase](https://supabase.com/) (Auth + PostgreSQL, migrations dans `supabase/migrations/`)
 
 ---
 
 ## Installation et démarrage local
 
-### Prérequis
-
-- [Node.js](https://nodejs.org/) version 20 ou supérieure (Node.js 22 recommandé)
-- npm ou gestionnaire de paquets compatible
-
-### 1. Installation des dépendances
+Prérequis : Node.js 20.19 ou supérieur (22 recommandé).
 
 ```bash
 npm install
-```
-
-### 2. Configuration des variables d’environnement
-
-Dupliquez le fichier d’exemple `.env.example` en `.env.local` pour définir vos identifiants de base de données :
-
-```bash
-cp .env.example .env.local
-```
-
-*(Note : le fichier `.env.local` est ignoré par Git et ne doit jamais être commité).*
-
-### 3. Lancement du serveur de développement
-
-```bash
+cp .env.example .env.local   # puis renseigner les deux variables Supabase
 npm run dev
 ```
 
-L’application est accessible à l’adresse [http://localhost:3000](http://localhost:3000).
+Variables (voir `.env.example`) : `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` (clé publique « sb_publishable_… »). Aucun mot de passe de base de données n'est nécessaire dans l'application.
 
----
+## Commandes
 
-## Scripts disponibles
-
-| Commande | Description |
+| Commande | Rôle |
 |---|---|
-| `npm run dev` | Lance le serveur de développement Next.js |
-| `npm run build` | Compile l’application pour la production |
-| `npm run start` | Démarre le serveur de production |
-| `npm run lint` | Analyse le code source avec ESLint |
-| `npm run typecheck` | Vérifie les types TypeScript (`tsc --noEmit`) |
+| `npm run dev` | Serveur de développement |
+| `npm run lint` / `npm run typecheck` / `npm test` | Contrôles qualité |
+| `npm run build` | Build de production |
 
----
+## Base de données
 
-## Structure du projet
+Les migrations vivent dans `supabase/migrations/` et sont appliquées avec la CLI Supabase (`npx supabase link --project-ref <réf>` puis `npx supabase db push`). Voir **DEPLOIEMENT.md** pour la procédure complète (GitHub, Supabase, Vercel).
 
-```text
-├── public/                 # Ressources statiques, manifest PWA et icônes
-├── src/
-│   ├── app/                # Pages, routes et mise en page Next.js (App Router)
-│   ├── components/         # Composants React de l’application et du studio
-│   ├── db/                 # Schéma Drizzle et configuration PostgreSQL
-│   ├── lib/                # Gabarits, types métier et moteurs d’export
-│   └── types/              # Déclarations TypeScript complémentaires
-├── .env.example            # Gabarit des variables d’environnement sans secrets
-├── .gitignore              # Règles d’exclusion Git
-└── package.json            # Dépendances et scripts du projet
-```
+## Sécurité
 
----
-
-## Règles de contribution et conventions
-
-- **Sécurité** : aucun secret, jeton ou mot de passe ne doit figurer dans le code ou l’historique Git.
-- **Typographie** : l’ensemble des textes d’interface et de documentation utilise le français avec des apostrophes typographiques courbées (`’`).
-- **Nom officiel** : l’application s’écrit strictement **PlaniLux** en toutes circonstances.
+- Ne jamais commiter de `.env*` (sauf `.env.example`), de mot de passe de base, de clé `service_role` / `sb_secret_…` ni de jeton.
+- Les tables sont protégées par RLS : la clé publique ne donne accès qu'aux données de l'utilisateur connecté.

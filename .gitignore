@@ -6,13 +6,17 @@ build/
 coverage/
 *.tsbuildinfo
 
-# Secrets & environnement
+# Secrets & environnement (le modèle .env.example reste versionné)
 .env
 .env.*
 !.env.example
 
-# Divers
+# Vercel / Supabase (fichiers locaux)
 .vercel/
+supabase/.temp/
+supabase/.branches/
+
+# Divers
 .DS_Store
 npm-debug.log*
 playwright-report/

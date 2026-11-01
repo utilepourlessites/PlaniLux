@@ -1,0 +1,8 @@
+# Configuration de la CLI Supabase (projet distant : asxwrokenlfntzzcohil).
+# Les réglages d'authentification du projet hébergé se font dans le tableau de bord Supabase
+# (voir DEPLOIEMENT.md) ; ce fichier sert surtout au dossier de migrations.
+project_id = "planilux"
+
+[db]
+# Vérifier la version dans Supabase → Project Settings → Infrastructure avant un usage en local.
+major_version = 17

@@ -15,14 +15,58 @@ import { ExportStudio } from "@/components/export-studio";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { HelpDialog } from "@/components/help-dialog";
 import { makeDefaultBoards, makeTemplate } from "@/lib/templates";
+import type { User } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BOARD_KIND_LABELS } from "@/lib/planner-types";
 import type { BoardKind, PlannerBoard, ScheduleEvent } from "@/lib/planner-types";
+
+type UserResponse = { data: { user: User | null } };
 
 const LOCAL_KEY = "planilux-boards-v1";
 const THEME_KEY = "planilux-theme";
 const FONT_SCALE_KEY = "planilux-font-scale";
 const BRIGHTNESS_KEY = "planilux-brightness";
 const USER_NAME_KEY = "planilux-user-name";
+const PENDING_KEY = "planilux-pending-sync-v1";
+const DEFAULT_USER_NAME = "Mon compte";
+
+function readPending(): string[] {
+  try {
+    const value = window.localStorage.getItem(PENDING_KEY);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePending(ids: string[]) {
+  try { window.localStorage.setItem(PENDING_KEY, JSON.stringify([...new Set(ids)])); } catch {}
+}
+
+function markPending(id: string, pending: boolean) {
+  const current = readPending().filter((item) => item !== id);
+  writePending(pending ? [...current, id] : current);
+}
+
+/** Envoie un tableau au serveur ; renvoie le tableau enregistré, ou null en cas d'échec (il reste alors « en attente »). */
+async function pushBoard(board: PlannerBoard, method: "POST" | "PATCH"): Promise<PlannerBoard | null> {
+  try {
+    const response = await fetch(method === "POST" ? "/api/boards" : `/api/boards/${board.id}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(board),
+    });
+    if (response.status === 401) { window.location.href = "/login"; return null; }
+    if (response.status === 409) { markPending(board.id, false); return null; }
+    if (!response.ok) { markPending(board.id, true); return null; }
+    markPending(board.id, false);
+    return await response.json() as PlannerBoard;
+  } catch {
+    markPending(board.id, true);
+    return null;
+  }
+}
 const WORKSPACE_NAME_KEY = "planilux-workspace-name";
 
 function readLocalBoards(): PlannerBoard[] {
@@ -78,7 +122,7 @@ export function PlannerApp() {
       const saved = window.localStorage.getItem(USER_NAME_KEY);
       if (saved) return saved;
     }
-    return "Camille Moreau";
+    return DEFAULT_USER_NAME;
   });
   const [workspaceName, setWorkspaceName] = useState(() => {
     if (typeof window !== "undefined") {
@@ -121,11 +165,14 @@ export function PlannerApp() {
     document.documentElement.style.setProperty("--app-brightness", `${clamped}%`);
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     toastMessage("Déconnexion de PlaniLux…");
-    window.setTimeout(() => {
-      window.location.href = "/login";
-    }, 250);
+    try { await getSupabaseBrowserClient()?.auth.signOut(); } catch {}
+    // Un autre utilisateur ne doit jamais retrouver les données du précédent sur ce navigateur.
+    try {
+      [LOCAL_KEY, USER_NAME_KEY, WORKSPACE_NAME_KEY, PENDING_KEY].forEach((key) => window.localStorage.removeItem(key));
+    } catch {}
+    window.location.href = "/login";
   }, [toastMessage]);
 
   useEffect(() => {
@@ -152,18 +199,46 @@ export function PlannerApp() {
 
     let cancelled = false;
     const local = readLocalBoards();
+    const pending = new Set(readPending());
+
+    // Nom d'affichage : la source de vérité est le profil en base (le cache local n'est qu'un confort).
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      supabase.auth.getUser().then(async ({ data: { user } }: UserResponse) => {
+        if (!user || cancelled) return;
+        const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
+        const fallback = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : user.email?.split("@")[0];
+        const display = profile?.display_name || fallback;
+        if (display && !cancelled) {
+          setUserName(display);
+          try { window.localStorage.setItem(USER_NAME_KEY, display); } catch {}
+        }
+      }).catch(() => undefined);
+    }
+
     fetch("/api/boards", { cache: "no-store" }).then(async (response) => {
+      if (response.status === 401) { window.location.href = "/login"; return; }
       if (!response.ok) throw new Error("offline");
       const remote = await response.json() as PlannerBoard[];
       if (cancelled || !Array.isArray(remote)) return;
       const localById = new Map(local.map((board) => [board.id, board]));
       const remoteIds = new Set(remote.map((board) => board.id));
+      // Le serveur fait foi. On ne garde le local que s'il est plus récent ET en attente d'envoi
+      // (évite de ressusciter des tableaux supprimés ailleurs).
       const merged = remote.map((board) => {
         const localBoard = localById.get(board.id);
-        if (localBoard && new Date(localBoard.updatedAt).getTime() > new Date(board.updatedAt).getTime()) return localBoard;
+        if (localBoard && pending.has(board.id) && new Date(localBoard.updatedAt).getTime() > new Date(board.updatedAt).getTime()) {
+          void pushBoard(localBoard, "PATCH");
+          return localBoard;
+        }
         return board;
       });
-      for (const board of local) if (!remoteIds.has(board.id)) merged.push(board);
+      for (const board of local) {
+        if (!remoteIds.has(board.id) && pending.has(board.id)) {
+          merged.push(board);
+          void pushBoard(board, "POST");
+        }
+      }
       setBoards(merged);
       window.localStorage.setItem(LOCAL_KEY, JSON.stringify(merged));
     }).catch(() => undefined);
@@ -214,19 +289,10 @@ export function PlannerApp() {
     const next = exists ? boards.map((item) => item.id === board.id ? board : item) : [board, ...boards];
     persistLocal(next);
     const method = isNew || !exists ? "POST" : "PATCH";
-    fetch(method === "POST" ? "/api/boards" : `/api/boards/${board.id}`, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(board),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("offline");
-      const saved = await response.json() as PlannerBoard;
-      if (saved.id) {
-        const updated = next.map((item) => item.id === saved.id ? { ...item, ...saved } : item);
-        persistLocal(updated);
+    void pushBoard(board, method).then((saved) => {
+      if (saved?.id) {
+        persistLocal(next.map((item) => item.id === saved.id ? { ...item, ...saved } : item));
       }
-    }).catch(() => {
-      /* Saved locally via persistLocal; sync will resume when backend is connected */
     });
   }, [boards, persistLocal]);
 
@@ -282,6 +348,7 @@ export function PlannerApp() {
 
   const removePermanently = async (board: PlannerBoard) => {
     persistLocal(boards.filter((item) => item.id !== board.id));
+    markPending(board.id, false);
     try { await fetch(`/api/boards/${board.id}`, { method: "DELETE" }); } catch { /* Local removal remains in place. */ }
     toastMessage("Tableau supprimé définitivement");
   };
@@ -297,6 +364,12 @@ export function PlannerApp() {
   const saveUserName = (name: string) => {
     setUserName(name);
     try { window.localStorage.setItem(USER_NAME_KEY, name); } catch {}
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      void supabase.auth.getUser().then(({ data: { user } }: UserResponse) => {
+        if (user) return supabase.from("profiles").update({ display_name: name.slice(0, 80) }).eq("id", user.id);
+      }).catch(() => undefined);
+    }
   };
 
   const saveWorkspaceName = (name: string) => {
@@ -304,7 +377,7 @@ export function PlannerApp() {
     try { window.localStorage.setItem(WORKSPACE_NAME_KEY, name); } catch {}
   };
 
-  const userInitials = userName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "CM";
+  const userInitials = userName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "PL";
 
   const filteredBoards = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("fr");
@@ -519,12 +592,17 @@ export function PlannerApp() {
           boards={boards}
           onImportBoards={(imported) => {
             persistLocal(imported);
+            imported.forEach((board) => { void pushBoard(board, "POST"); });
             toastMessage(`${imported.length} tableau(x) importé(s)`);
           }}
           onResetDefaults={() => {
-            const defs = makeDefaultBoards();
-            persistLocal(defs);
-            toastMessage("Tableaux réinitialisés");
+            const now = new Date().toISOString();
+            const trashed = boards.map((board) => board.isDeleted ? board : { ...board, isDeleted: true, updatedAt: now });
+            const fresh = makeDefaultBoards().map((board) => ({ ...board, id: crypto.randomUUID(), createdAt: now, updatedAt: now }));
+            persistLocal([...fresh, ...trashed]);
+            trashed.forEach((board, index) => { if (board !== boards[index]) void pushBoard(board, "PATCH"); });
+            fresh.forEach((board) => { void pushBoard(board, "POST"); });
+            toastMessage("Tableaux réinitialisés (les anciens sont dans la corbeille)");
           }}
           onLogout={handleLogout}
           onToast={toastMessage}

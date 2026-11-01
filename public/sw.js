@@ -1,4 +1,4 @@
-const CACHE_NAME = "planilux-v1";
+const CACHE_NAME = "planilux-v2";
 const APP_SHELL = ["/", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -14,7 +14,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  // Jamais d'interception des appels API ni des pages d'authentification.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth") || url.pathname === "/login") return;
   event.respondWith(fetch(event.request).then((response) => {
     if (response.ok && (url.pathname === "/" || url.pathname.startsWith("/_next/static/") || url.pathname === "/manifest.json")) {
       const copy = response.clone();

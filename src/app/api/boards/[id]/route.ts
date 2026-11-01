@@ -1,49 +1,71 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { plannerBoards } from "@/db/schema";
-import type { PlannerBoard } from "@/lib/planner-types";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { UUID_REGEX, validateBoardPatch } from "@/lib/board-validation";
+import { rowToBoard, type BoardRow } from "@/lib/board-mapper";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const unauthorized = () => NextResponse.json({ error: "Connexion requise." }, { status: 401 });
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
-    if (!UUID_REGEX.test(id)) {
-      return NextResponse.json({ error: "Identifiant de tableau invalide." }, { status: 400 });
-    }
-    const body = await request.json() as Partial<PlannerBoard>;
-    const update: Partial<typeof plannerBoards.$inferInsert> = { updatedAt: new Date() };
-    if (typeof body.title === "string") update.title = body.title.trim().slice(0, 100);
-    if (body.kind) update.kind = body.kind;
-    if (body.color) update.color = body.color;
-    if (body.events) update.events = body.events;
-    if (typeof body.favorite === "boolean") update.favorite = body.favorite;
-    if (typeof body.isDeleted === "boolean") update.isDeleted = body.isDeleted;
-    const [row] = await getDb().update(plannerBoards).set(update).where(eq(plannerBoards.id, id)).returning();
-    if (!row) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
-    return NextResponse.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+    if (!UUID_REGEX.test(id)) return NextResponse.json({ error: "Identifiant de tableau invalide." }, { status: 400 });
+
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return unauthorized();
+
+    let body: unknown;
+    try { body = await request.json(); } catch { return NextResponse.json({ error: "Requête invalide." }, { status: 400 }); }
+    const parsed = validateBoardPatch(body);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+    const { isDeleted, ...rest } = parsed.value;
+    const update = { ...rest, ...(isDeleted !== undefined ? { is_deleted: isDeleted } : {}) };
+    if (Object.keys(update).length === 0) return NextResponse.json({ error: "Aucune modification fournie." }, { status: 400 });
+
+    // La RLS limite déjà la mise à jour aux tableaux de l'utilisateur ; le filtre user_id est une double sécurité.
+    const { data, error } = await supabase
+      .from("planner_boards")
+      .update(update)
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select("*")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
+    return NextResponse.json(rowToBoard(data as BoardRow));
   } catch (error) {
     console.error("Unable to update planner board", error);
     return NextResponse.json({ error: "Impossible de modifier le tableau." }, { status: 500 });
   }
 }
 
+/** Suppression définitive (la mise à la corbeille passe par PATCH { isDeleted: true }). */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
-    if (!UUID_REGEX.test(id)) {
-      return NextResponse.json({ error: "Identifiant de tableau invalide." }, { status: 400 });
-    }
-    const [row] = await getDb().delete(plannerBoards).where(eq(plannerBoards.id, id)).returning({ id: plannerBoards.id });
-    if (!row) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
+    if (!UUID_REGEX.test(id)) return NextResponse.json({ error: "Identifiant de tableau invalide." }, { status: 400 });
+
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return unauthorized();
+
+    const { data, error } = await supabase
+      .from("planner_boards")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Unable to archive planner board", error);
+    console.error("Unable to delete planner board", error);
     return NextResponse.json({ error: "Impossible de supprimer le tableau." }, { status: 500 });
   }
 }
