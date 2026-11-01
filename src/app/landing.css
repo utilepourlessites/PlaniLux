@@ -981,8 +981,33 @@
 }
 
 .auth-header .landing-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
+}
+
+.auth-header .landing-logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.auth-header .landing-logo-title {
+  font-size: 32px;
+  font-weight: 850;
+  letter-spacing: -0.9px;
+  color: #ffffff;
+}
+
+.auth-header .landing-logo-sub {
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: 0.5px;
+  color: #cfc8f0;
+  margin-top: 4px;
 }
 
 .auth-header h1 {
