@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { createHash } from "crypto";
 import { config } from "dotenv";
 
 config({ path: ".env.local" });
@@ -32,6 +33,23 @@ async function runMigrations() {
       );
     `);
 
+    // S'assurer de la contrainte unique sur hash
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '__drizzle_migrations_hash_unique'
+        ) THEN
+          ALTER TABLE "__drizzle_migrations" ADD CONSTRAINT "__drizzle_migrations_hash_unique" UNIQUE (hash);
+        END IF;
+      END
+      $$;
+    `);
+
+    // Récupérer les migrations déjà exécutées
+    const executedRes = await client.query(`SELECT hash FROM "__drizzle_migrations"`);
+    const executedHashes = new Set(executedRes.rows.map(r => r.hash));
+
     const migrationsDir = join(process.cwd(), "drizzle");
     const sqlFiles = readdirSync(migrationsDir)
       .filter((file) => file.endsWith(".sql"))
@@ -40,15 +58,34 @@ async function runMigrations() {
     for (const sqlFile of sqlFiles) {
       const fullPath = join(migrationsDir, sqlFile);
       const sqlContent = readFileSync(fullPath, "utf-8");
+      const hash = createHash("sha256").update(sqlContent).digest("hex");
+
+      if (executedHashes.has(hash)) {
+        console.log(`⏩ Migration déjà appliquée, ignorée: ${sqlFile}`);
+        continue;
+      }
 
       console.log(`⏳ Application de la migration: ${sqlFile}`);
-      await client.query(sqlContent);
-      console.log(`✅ Migration réussie: ${sqlFile}`);
+      try {
+        await client.query(sqlContent);
+      } catch (sqlErr) {
+        if (sqlErr.code === "42P07") {
+          console.log(`ℹ️ La table existe déjà sur Supabase pour ${sqlFile}.`);
+        } else {
+          throw sqlErr;
+        }
+      }
+
+      await client.query(
+        `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING`,
+        [hash, Date.now()]
+      );
+      console.log(`✅ Migration enregistrée: ${sqlFile}`);
     }
 
     client.release();
     await pool.end();
-    console.log("🎉 Toutes les migrations de base de données ont été appliquées avec succès !");
+    console.log("🎉 Toutes les migrations de base de données sont à jour !");
   } catch (error) {
     console.error("❌ Échec de la migration:", error);
     await pool.end().catch(() => {});
