@@ -21,7 +21,7 @@ export function getDb() {
       connectionString: url,
       max: 1, // 1 connexion par instance serverless
       idleTimeoutMillis: 10_000,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+      ssl: { rejectUnauthorized: false },
     });
 
   if (process.env.NODE_ENV !== "production") {
