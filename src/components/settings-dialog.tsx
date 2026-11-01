@@ -152,7 +152,7 @@ export function SettingsDialog({
                     <span className="setting-tag"><Type size={14} /></span>
                     <div>
                       <strong>Taille des écrits</strong>
-                      <span>Ajuste la taille de la police et la lisibilité dans toute l'application.</span>
+                      <span>Ajuste la taille de la police et la lisibilité dans toute l’application.</span>
                     </div>
                   </div>
                   <div className="font-stepper">
@@ -192,10 +192,10 @@ export function SettingsDialog({
                 <div className="font-preview-box">
                   <div className="font-preview-header">
                     <span>Aperçu en temps réel :</span>
-                    <span className="font-preview-tag">09:00 - 10:30 · Cours d'amphi</span>
+                    <span className="font-preview-tag">09:00 - 10:30 · Cours d’amphi</span>
                   </div>
                   <p className="font-preview-body">
-                    « Une organisation claire et bien lisible permet d’avancer l'esprit léger. »
+                    « Une organisation claire et bien lisible permet d’avancer l’esprit léger. »
                   </p>
                 </div>
               </div>
@@ -205,8 +205,8 @@ export function SettingsDialog({
                   <div className="setting-card-title">
                     <span className="setting-tag"><SunMedium size={14} /></span>
                     <div>
-                      <strong>Luminosité de l'écran</strong>
-                      <span>Ajuste l'intensité lumineuse du logiciel pour un confort visuel sur mesure.</span>
+                      <strong>Luminosité de l’écran</strong>
+                      <span>Ajuste l’intensité lumineuse du logiciel pour un confort visuel sur mesure.</span>
                     </div>
                   </div>
                   <div className="font-stepper">
@@ -300,13 +300,13 @@ export function SettingsDialog({
                     placeholder="Camille Moreau"
                     maxLength={35}
                   />
-                  <small>Ce nom apparaît dans la salutation d'accueil et sur les cartes.</small>
+                  <small>Ce nom apparaît dans la salutation d’accueil et sur les cartes.</small>
                 </label>
               </div>
 
               <div className="setting-card">
                 <label className="setting-field">
-                  <span>Nom de l'espace de travail</span>
+                  <span>Nom de l’espace de travail</span>
                   <input
                     type="text"
                     value={workspaceName}
@@ -314,7 +314,7 @@ export function SettingsDialog({
                     placeholder="Mon espace"
                     maxLength={35}
                   />
-                  <small>Affiché en haut du menu latéral et dans le fil d'Ariane.</small>
+                  <small>Affiché en haut du menu latéral et dans le fil d’Ariane.</small>
                 </label>
               </div>
 
@@ -324,7 +324,7 @@ export function SettingsDialog({
                     <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <LogOut size={15} /> Session & Profil : {userName}
                     </strong>
-                    <span>Fermer la session actuelle et revenir à l'écran de connexion PlaniLux.</span>
+                    <span>Fermer la session actuelle et revenir à l’écran de connexion PlaniLux.</span>
                   </div>
                   <button
                     type="button"
@@ -400,7 +400,7 @@ export function SettingsDialog({
 
         <div className="settings-footer">
           <span className="settings-autosave-note">
-            <Sparkles size={13} /> Les modifications s'appliquent immédiatement.
+            <Sparkles size={13} /> Les modifications s’appliquent immédiatement.
           </span>
           <button className="button-primary" onClick={onClose}>
             <Check size={15} /> Terminé

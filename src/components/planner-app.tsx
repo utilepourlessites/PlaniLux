@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell, CalendarDays, Check, ChevronDown, ChevronRight, Command, LogOut,
   Menu, Minus, Moon, Plus, Search, Sparkles, Sun, SunMedium, X,
@@ -33,17 +33,56 @@ function readLocalBoards(): PlannerBoard[] {
   }
 }
 
+const emptySubscribe = () => () => {};
+
 export function PlannerApp() {
-  const [boards, setBoards] = useState<PlannerBoard[]>([]);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const [boards, setBoards] = useState<PlannerBoard[]>(() => {
+    if (typeof window !== "undefined") {
+      const local = readLocalBoards();
+      if (local.length) return local;
+      return makeDefaultBoards();
+    }
+    return [];
+  });
   const [view, setView] = useState<PlannerView>("overview");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [dark, setDark] = useState(false);
-  const [fontScale, setFontScale] = useState(100);
-  const [brightness, setBrightness] = useState(100);
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.localStorage.getItem(THEME_KEY) === "dark";
+    }
+    return false;
+  });
+  const [fontScale, setFontScale] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = Number(window.localStorage.getItem(FONT_SCALE_KEY));
+      if (saved && !isNaN(saved)) return saved;
+    }
+    return 100;
+  });
+  const [brightness, setBrightness] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = Number(window.localStorage.getItem(BRIGHTNESS_KEY));
+      if (saved && !isNaN(saved) && saved >= 50 && saved <= 150) return saved;
+    }
+    return 100;
+  });
   const [brightnessOpen, setBrightnessOpen] = useState(false);
-  const [userName, setUserName] = useState("Camille Moreau");
-  const [workspaceName, setWorkspaceName] = useState("Mon espace");
+  const [userName, setUserName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(USER_NAME_KEY);
+      if (saved) return saved;
+    }
+    return "Camille Moreau";
+  });
+  const [workspaceName, setWorkspaceName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(WORKSPACE_NAME_KEY);
+      if (saved) return saved;
+    }
+    return "Mon espace";
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -51,7 +90,6 @@ export function PlannerApp() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(true);
   const [toast, setToast] = useState("");
-  const [ready, setReady] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const brightnessRef = useRef<HTMLDivElement>(null);
@@ -88,39 +126,27 @@ export function PlannerApp() {
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_KEY) === "dark";
-    setDark(savedTheme);
     document.documentElement.dataset.theme = savedTheme ? "dark" : "light";
 
     const savedFontScale = Number(window.localStorage.getItem(FONT_SCALE_KEY));
-    if (savedFontScale && !isNaN(savedFontScale)) {
-      applyFontScale(savedFontScale);
-    } else {
-      applyFontScale(100);
-    }
+    const fontScaleToApply = savedFontScale && !isNaN(savedFontScale) ? savedFontScale : 100;
+    document.documentElement.dataset.fontScale = String(fontScaleToApply);
+    document.documentElement.style.setProperty("--font-scale", String(fontScaleToApply / 100));
+    document.body.style.zoom = String(fontScaleToApply / 100);
 
     const savedBrightness = Number(window.localStorage.getItem(BRIGHTNESS_KEY));
     if (savedBrightness && !isNaN(savedBrightness) && savedBrightness >= 50 && savedBrightness <= 150) {
-      setBrightness(savedBrightness);
       document.documentElement.style.setProperty("--app-brightness", `${savedBrightness}%`);
     } else {
       document.documentElement.style.setProperty("--app-brightness", "100%");
     }
-
-    const savedUserName = window.localStorage.getItem(USER_NAME_KEY);
-    if (savedUserName) setUserName(savedUserName);
-
-    const savedWorkspace = window.localStorage.getItem(WORKSPACE_NAME_KEY);
-    if (savedWorkspace) setWorkspaceName(savedWorkspace);
-
-    const local = readLocalBoards();
-    setBoards(local.length ? local : makeDefaultBoards());
-    setReady(true);
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
 
     let cancelled = false;
+    const local = readLocalBoards();
     fetch("/api/boards", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) throw new Error("offline");
       const remote = await response.json() as PlannerBoard[];
@@ -138,7 +164,7 @@ export function PlannerApp() {
     }).catch(() => undefined);
 
     return () => { cancelled = true; };
-  }, [applyFontScale]);
+  }, []);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -439,7 +465,7 @@ export function PlannerApp() {
           </div>
         </header>
 
-        {!ready ? <div className="app-loading"><span className="loading-orbit" /><p>Un instant, on prépare ton espace…</p></div> : (
+        {!isClient ? <div className="app-loading"><span className="loading-orbit" /><p>Un instant, on prépare ton espace…</p></div> : (
           <div className="page-content" key={`${view}-${activeBoard?.id ?? "none"}`}>
             {view === "overview" && (
               <Overview

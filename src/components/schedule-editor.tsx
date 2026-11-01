@@ -109,11 +109,13 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
   const [selectedDay, setSelectedDay] = useState(getTodayIndex);
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
   const [addDefaults, setAddDefaults] = useState({ day: 0, start: "09:00" });
+  const [prevBoardMeta, setPrevBoardMeta] = useState({ id: board.id, title: board.title });
   const [titleDraft, setTitleDraft] = useState(board.title);
 
-  useEffect(() => {
+  if (prevBoardMeta.id !== board.id || prevBoardMeta.title !== board.title) {
+    setPrevBoardMeta({ id: board.id, title: board.title });
     setTitleDraft(board.title);
-  }, [board.id, board.title]);
+  }
 
   const week = useMemo(() => createWeek(weekOffset), [weekOffset]);
   const activeDays = onlyDay ? [week[selectedDay]] : week;

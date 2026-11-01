@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronDown, Download, FileText, Image, Printer,
+  ArrowLeft, Check, ChevronDown, Download, FileText, Image as ImageIcon, Printer,
   RefreshCw, Sparkles, Type,
 } from "lucide-react";
 import { downloadDocx, downloadPdf, downloadPng, printSchedule, type ExportFormat, type ExportOptions } from "@/lib/exports";
@@ -22,7 +22,7 @@ function ExportPreview({ board, options, previewRef }: { board: PlannerBoard; op
   const phone = options.format === "phone";
 
   const weekDates = useMemo(() => {
-    const ref = new Date(board.updatedAt || Date.now());
+    const ref = new Date(board.updatedAt || board.createdAt || "2026-01-01T00:00:00.000Z");
     const dayOfWeek = (ref.getDay() + 6) % 7;
     const monday = new Date(ref);
     monday.setDate(ref.getDate() - dayOfWeek);
@@ -31,7 +31,7 @@ function ExportPreview({ board, options, previewRef }: { board: PlannerBoard; op
       d.setDate(monday.getDate() + i);
       return String(d.getDate()).padStart(2, "0");
     });
-  }, [board.updatedAt]);
+  }, [board.updatedAt, board.createdAt]);
 
   const eventByDay = useMemo(() => days.map((_, index) => board.events.filter((event) => event.day === index).sort((a, b) => a.start.localeCompare(b.start))), [board.events]);
   return (
@@ -65,7 +65,7 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
   const [busy, setBusy] = useState("");
   const previewRef = useRef<HTMLDivElement>(null);
   const change = (patch: Partial<ExportOptions>) => setOptions((current) => ({ ...current, ...patch }));
-  const useExport = async (format: string, action: () => void | Promise<void>) => {
+  const runExport = async (format: string, action: () => void | Promise<void>) => {
     setBusy(format);
     try { await action(); onToast(`${format} prêt à télécharger`); }
     catch { onToast(`Impossible de générer le ${format}. Réessaie dans un instant.`); }
@@ -76,7 +76,7 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
     <div className="studio-page">
       <div className="studio-heading">
         <div><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Retour au planning</button><div className="studio-title-line"><span className="studio-title-icon"><Printer size={18} /></span><div><div className="eyebrow-date"><span className="eyebrow-sparkle">✳</span> LE DERNIER PETIT DÉTAIL</div><h1>Studio d’impression</h1></div></div><p>Un aperçu fidèle, pour un planning qui te ressemble.</p></div>
-        <div className="studio-heading-actions"><button className="button-quiet" onClick={() => setOptions(defaultOptions)}><RefreshCw size={14} /> Réinitialiser</button><button className="button-primary" disabled={Boolean(busy)} onClick={() => void useExport("PDF", () => downloadPdf(board, options))}>{busy === "PDF" ? <span className="button-spinner" /> : <Download size={15} />} Télécharger le PDF</button></div>
+        <div className="studio-heading-actions"><button className="button-quiet" onClick={() => setOptions(defaultOptions)}><RefreshCw size={14} /> Réinitialiser</button><button className="button-primary" disabled={Boolean(busy)} onClick={() => void runExport("PDF", () => downloadPdf(board, options))}>{busy === "PDF" ? <span className="button-spinner" /> : <Download size={15} />} Télécharger le PDF</button></div>
       </div>
 
       <div className="studio-layout">
@@ -94,7 +94,7 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
 
         <section className="studio-preview-panel"><div className="preview-panel-heading"><div><div className="section-eyebrow">APERÇU DU DOCUMENT</div><h2>{board.title}</h2></div><span className="preview-format-label"><span />{options.format === "a4" ? `A4 · ${options.orientation === "portrait" ? "Portrait" : "Paysage"}` : options.format === "letter" ? `US Letter · ${options.orientation}` : options.format === "phone" ? "Écran téléphone · 9:16" : "Écran ordinateur · 16:9"}</span></div>
           <ExportPreview board={board} options={options} previewRef={previewRef} />
-          <div className="export-actions"><div className="export-action-intro"><strong>À emporter avec toi</strong><span>Télécharge, imprime ou change de support.</span></div><div className="export-action-buttons"><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void useExport("Word", () => downloadDocx(board, options))}><span><FileText size={16} /></span><span><strong>{busy === "Word" ? "Préparation…" : "Word"}</strong><small>.docx modifiable</small></span><Download size={14} className="export-action-arrow" /></button><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void useExport("PNG", async () => { if (!previewRef.current) throw new Error("preview missing"); await downloadPng(previewRef.current, board); })}><span><Image size={16} /></span><span><strong>{busy === "PNG" ? "Préparation…" : "Image HD"}</strong><small>.png haute résolution</small></span><Download size={14} className="export-action-arrow" /></button><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void useExport("impression", () => printSchedule())}><span><Printer size={16} /></span><span><strong>Imprimer</strong><small>Directement depuis ici</small></span><ChevronDown size={14} className="export-action-arrow print-arrow" /></button></div></div>
+          <div className="export-actions"><div className="export-action-intro"><strong>À emporter avec toi</strong><span>Télécharge, imprime ou change de support.</span></div><div className="export-action-buttons"><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void runExport("Word", () => downloadDocx(board, options))}><span><FileText size={16} /></span><span><strong>{busy === "Word" ? "Préparation…" : "Word"}</strong><small>.docx modifiable</small></span><Download size={14} className="export-action-arrow" /></button><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void runExport("PNG", async () => { if (!previewRef.current) throw new Error("preview missing"); await downloadPng(previewRef.current, board); })}><span><ImageIcon size={16} /></span><span><strong>{busy === "PNG" ? "Préparation…" : "Image HD"}</strong><small>.png haute résolution</small></span><Download size={14} className="export-action-arrow" /></button><button className="export-format-button" disabled={Boolean(busy)} onClick={() => void runExport("impression", () => printSchedule())}><span><Printer size={16} /></span><span><strong>Imprimer</strong><small>Directement depuis ici</small></span><ChevronDown size={14} className="export-action-arrow print-arrow" /></button></div></div>
         </section>
       </div>
       <div className="studio-bottom-note"><span>✳</span> Garde de la place pour les imprévus. C’est souvent là que les belles choses arrivent.</div>

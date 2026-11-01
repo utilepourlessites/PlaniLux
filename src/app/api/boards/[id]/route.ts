@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { plannerBoards } from "@/db/schema";
 import type { PlannerBoard } from "@/lib/planner-types";
+
+export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,7 +24,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if (body.events) update.events = body.events;
     if (typeof body.favorite === "boolean") update.favorite = body.favorite;
     if (typeof body.isDeleted === "boolean") update.isDeleted = body.isDeleted;
-    const [row] = await db.update(plannerBoards).set(update).where(eq(plannerBoards.id, id)).returning();
+    const [row] = await getDb().update(plannerBoards).set(update).where(eq(plannerBoards.id, id)).returning();
     if (!row) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
     return NextResponse.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (error) {
@@ -37,11 +39,11 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     if (!UUID_REGEX.test(id)) {
       return NextResponse.json({ error: "Identifiant de tableau invalide." }, { status: 400 });
     }
-    const [row] = await db.delete(plannerBoards).where(eq(plannerBoards.id, id)).returning({ id: plannerBoards.id });
+    const [row] = await getDb().delete(plannerBoards).where(eq(plannerBoards.id, id)).returning({ id: plannerBoards.id });
     if (!row) return NextResponse.json({ error: "Tableau introuvable." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Unable to archive planner board", error);
-    return NextResponse.json({ error: "Impossible de déplacer le tableau." }, { status: 500 });
+    return NextResponse.json({ error: "Impossible de supprimer le tableau." }, { status: 500 });
   }
 }

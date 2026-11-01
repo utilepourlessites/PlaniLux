@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, Check, Command, Download, Sparkles, X } from "lucide-react";
+import { BookOpen, Check, Command, Sparkles, X } from "lucide-react";
 
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
@@ -12,7 +12,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <div className="settings-title-wrap">
             <span className="settings-icon-mark"><BookOpen size={18} /></span>
             <div>
-              <h2 id="help-dialog-title">Centre d'aide & Raccourcis</h2>
+              <h2 id="help-dialog-title">Centre d’aide & Raccourcis</h2>
               <p>Retrouve les astuces et raccourcis pour profiter pleinement de PlaniLux.</p>
             </div>
           </div>
@@ -62,10 +62,10 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
         <div className="settings-footer">
           <span className="settings-autosave-note">
-            <Sparkles size={13} /> Besoin d'une pause ? Planifie-la comme un vrai rendez-vous !
+            <Sparkles size={13} /> Besoin d’une pause ? Planifie-la comme un vrai rendez-vous !
           </span>
           <button className="button-primary" onClick={onClose}>
-            <Check size={15} /> J'ai compris
+            <Check size={15} /> J’ai compris
           </button>
         </div>
       </div>

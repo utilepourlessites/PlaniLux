@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Lock, Mail, Shield, Sparkles, UserRound,
@@ -9,22 +9,21 @@ import "@/app/landing.css";
 
 export function LoginView() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "signup") {
+        return "signup";
+      }
+    }
+    return "login";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("mode") === "signup") {
-        setMode("signup");
-      }
-    }
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,7 +167,7 @@ export function LoginView() {
           </div>
 
           <button type="submit" className="btn-auth-submit" disabled={busy}>
-            {busy ? "Accès à l'espace…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
+            {busy ? "Accès à l’espace…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
             <ArrowRight size={15} />
           </button>
         </form>
