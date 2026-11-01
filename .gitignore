@@ -1,0 +1,19 @@
+# Dépendances & builds
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+
+# Secrets & environnement
+.env
+.env.*
+!.env.example
+
+# Divers
+.vercel/
+.DS_Store
+npm-debug.log*
+playwright-report/
+test-results/
