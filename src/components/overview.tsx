@@ -12,14 +12,14 @@ const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function MiniWeek({ board, onOpen }: { board: PlannerBoard; onOpen: () => void }) {
   const eventsByDay = useMemo(() => {
-    const map = new Map<number, typeof board.events>();
+    const map = new Map<number, PlannerBoard["events"]>();
     for (const ev of board.events) {
       const list = map.get(ev.day) ?? [];
       list.push(ev);
       map.set(ev.day, list);
     }
     return map;
-  }, [board.events]);
+  }, [board]);
 
   return (
     <div className="mini-week" onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}>
