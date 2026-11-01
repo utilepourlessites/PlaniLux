@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight, Lock, Mail, Shield, Sparkles, UserRound,
 } from "lucide-react";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import "@/app/landing.css";
 
 export function LoginView() {
@@ -25,7 +26,7 @@ export function LoginView() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       setFeedback("Veuillez remplir votre email et votre mot de passe.");
@@ -34,19 +35,65 @@ export function LoginView() {
     setBusy(true);
     setFeedback("");
 
-    setTimeout(() => {
-      if (mode === "signup" && name.trim()) {
-        try { window.localStorage.setItem("planilux-user-name", name.trim()); } catch {}
-      } else if (!window.localStorage.getItem("planilux-user-name")) {
-        try {
-          const userPrefix = email.split("@")[0] || "Camille";
-          const formatted = userPrefix.charAt(0).toUpperCase() + userPrefix.slice(1);
-          window.localStorage.setItem("planilux-user-name", formatted);
-        } catch {}
+    const supabase = getSupabaseClient();
+
+    try {
+      if (supabase) {
+        if (mode === "signup") {
+          const { data, error } = await supabase.auth.signUp({
+            email: email.trim(),
+            password: password.trim(),
+            options: {
+              data: {
+                full_name: name.trim() || undefined,
+              },
+            },
+          });
+          if (error) {
+            setFeedback(error.message);
+            setBusy(false);
+            return;
+          }
+          if (data.user) {
+            const displayName = name.trim() || data.user.user_metadata?.full_name || email.split("@")[0];
+            try { window.localStorage.setItem("planilux-user-name", displayName); } catch {}
+          }
+        } else {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password.trim(),
+          });
+          if (error) {
+            setFeedback(error.message);
+            setBusy(false);
+            return;
+          }
+          if (data.user) {
+            const displayName = data.user.user_metadata?.full_name || email.split("@")[0];
+            const formatted = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+            try { window.localStorage.setItem("planilux-user-name", formatted); } catch {}
+          }
+        }
+      } else {
+        // Mode hors-ligne / fallback local
+        if (mode === "signup" && name.trim()) {
+          try { window.localStorage.setItem("planilux-user-name", name.trim()); } catch {}
+        } else if (!window.localStorage.getItem("planilux-user-name")) {
+          try {
+            const userPrefix = email.split("@")[0] || "Camille";
+            const formatted = userPrefix.charAt(0).toUpperCase() + userPrefix.slice(1);
+            window.localStorage.setItem("planilux-user-name", formatted);
+          } catch {}
+        }
       }
 
       router.push("/app");
-    }, 350);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Une erreur inattendue est survenue.";
+      setFeedback(message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleGuestAccess = () => {

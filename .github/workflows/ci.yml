@@ -1,0 +1,38 @@
+name: CI PlaniLux
+
+on:
+  push:
+    branches: [ "main", "feat/**" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint, Typecheck & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérifier ESLint (0 erreur)
+        run: npm run lint
+
+      - name: Vérifier TypeScript (0 erreur)
+        run: npm run typecheck
+
+      - name: Compiler le projet Next.js (sans DATABASE_URL requise)
+        run: npm run build
