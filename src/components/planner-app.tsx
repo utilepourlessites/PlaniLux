@@ -88,7 +88,7 @@ export function PlannerApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(true);
+  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
   const [toast, setToast] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -477,7 +477,7 @@ export function PlannerApp() {
               />
             )}
             {(view === "boards" || view === "starred" || view === "trash" || view === "university" || view === "personal") && (
-              <BoardLibrary view={view} boards={filteredBoards} query={search} onCreate={openTemplateDialog} onOpen={openBoard} onDuplicate={duplicateBoard} onFavorite={toggleFavorite} onArchive={archiveBoard} onRestore={restoreBoard} onDelete={removePermanently} onClearSearch={() => setSearch("")} />
+              <BoardLibrary view={view} boards={filteredBoards} query={search} onCreate={openTemplateDialog} onOpen={openBoard} onDuplicate={duplicateBoard} onFavorite={toggleFavorite} onArchive={archiveBoard} onRestore={restoreBoard} onDelete={removePermanently} onClearSearch={() => setSearch("")} userName={userName} />
             )}
             {view === "editor" && activeBoard && (
               <ScheduleEditor board={activeBoard} onBoardChange={updateBoard} onBack={() => setView("boards")} onOpenStudio={() => setView("studio")} onEventSave={updateEvent} onEventDelete={deleteEvent} onToast={toastMessage} />

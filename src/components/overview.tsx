@@ -67,7 +67,24 @@ export function Overview({ boards, onCreate, onOpen, onNavigate, userName }: {
   onNavigate: (view: PlannerView) => void;
   userName?: string;
 }) {
-  const [taskDone, setTaskDone] = useState(false);
+  const [taskDone, setTaskDone] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return window.localStorage.getItem("planilux-task-done") === "true";
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  const toggleTask = () => {
+    const next = !taskDone;
+    setTaskDone(next);
+    try {
+      window.localStorage.setItem("planilux-task-done", String(next));
+    } catch {}
+  };
   const featured = boards.find((board) => board.favorite) ?? boards[0];
   const eventCount = boards.reduce((total, board) => total + board.events.length, 0);
   const date = new Date();
@@ -132,11 +149,11 @@ export function Overview({ boards, onCreate, onOpen, onNavigate, userName }: {
           <div className="today-reminder"><span className="reminder-icon"><Clock3 size={16} /></span><div><strong>Respirer, c’est productif.</strong><p>Une pause fait aussi partie du programme.</p></div></div>
           <button
             className={`today-task today-task-btn ${taskDone ? "is-task-done" : ""}`}
-            onClick={() => setTaskDone(!taskDone)}
-            aria-label="Cocher l'objectif du jour"
+            onClick={toggleTask}
+            aria-label="Cocher l’objectif du jour"
           >
             <span className="task-check">{taskDone && <Check size={11} />}</span>
-            <div><strong>Garder un moment pour soi</strong><small>{taskDone ? "Fait pour aujourd'hui ! ✨" : "La priorité du jour"}</small></div>
+            <div><strong>Garder un moment pour soi</strong><small>{taskDone ? "Fait pour aujourd’hui ! ✨" : "La priorité du jour"}</small></div>
             <span className="task-tag">{taskDone ? "ACCOMPLI" : "ESSENTIEL"}</span>
           </button>
           <div className="today-footer"><span>Ton agenda t’appartient.</span><span className="footer-heart">♡</span></div>

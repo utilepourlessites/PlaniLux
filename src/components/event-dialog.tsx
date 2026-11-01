@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock3, MapPin, NotebookPen, Trash2, UserRound, X } from "lucide-react";
 import { EVENT_COLORS, type ScheduleEvent } from "@/lib/planner-types";
 
@@ -12,17 +12,31 @@ type Props = {
   initialStart: string;
   initialDate?: string;
   monthly?: boolean;
+  existingEvents?: ScheduleEvent[];
   onClose: () => void;
   onSave: (event: ScheduleEvent) => void;
   onDelete: (id: string) => void;
 };
 
-export function EventDialog({ event, initialDay, initialStart, initialDate, monthly = false, onClose, onSave, onDelete }: Props) {
+export function EventDialog({ event, initialDay, initialStart, initialDate, monthly = false, existingEvents, onClose, onSave, onDelete }: Props) {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<ScheduleEvent>(() => event ?? {
     id: crypto.randomUUID(), title: "", day: initialDay, date: initialDate, start: initialStart,
     end: addMinutes(initialStart, 60), color: EVENT_COLORS[0].value, location: "", teacher: "", notes: "",
   });
+
+  const conflict = useMemo(() => {
+    if (!existingEvents || !draft.start || !draft.end || draft.end <= draft.start) return null;
+    return existingEvents.find((other) => {
+      if (other.id === draft.id) return false;
+      if (monthly) {
+        if (other.date && draft.date && other.date !== draft.date) return false;
+      } else {
+        if (other.day !== draft.day) return false;
+      }
+      return other.start < draft.end && other.end > draft.start;
+    });
+  }, [existingEvents, draft.id, draft.day, draft.date, draft.start, draft.end, monthly]);
 
   useEffect(() => {
     const onKeyDown = (key: KeyboardEvent) => { if (key.key === "Escape") onClose(); };
@@ -83,6 +97,29 @@ export function EventDialog({ event, initialDay, initialStart, initialDate, mont
             <input className="text-input" type="time" step={900} value={draft.end} onChange={(input) => change({ end: input.target.value })} />
           </label>
         </div>
+        {conflict && (
+          <div
+            className="event-conflict-warning"
+            role="status"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "7px 11px",
+              marginTop: "8px",
+              borderRadius: "7px",
+              background: "#fff9eb",
+              border: "1px solid #f9e2af",
+              color: "#855a10",
+              fontSize: "0.8125rem",
+            }}
+          >
+            <span>⚠️</span>
+            <span>
+              Chevauche <strong>{conflict.title || "un créneau"}</strong> ({conflict.start}–{conflict.end})
+            </span>
+          </div>
+        )}
         <label className="field-label teacher-field">Enseignant·e <span className="optional-label">OPTIONNEL</span>
           <span className="input-with-icon"><UserRound size={15} /><input className="text-input" maxLength={70} value={draft.teacher ?? ""} onChange={(input) => change({ teacher: input.target.value })} placeholder="Nom de l’enseignant·e" /></span>
         </label>

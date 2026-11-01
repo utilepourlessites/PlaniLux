@@ -200,10 +200,10 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
           <section className="option-group">
             <div className="option-group-title">AFFICHAGE <span>02</span></div>
             <OptionToggle label="Titre du planning" checked={options.showTitle} onChange={(showTitle) => change({ showTitle })} />
-            <OptionToggle label="Dates & en-tête" checked={options.showDates} onChange={(showDates) => change({ showDates })} />
+            <OptionToggle label="Dates des jours" checked={options.showDates} onChange={(showDates) => change({ showDates })} />
             <OptionToggle label="Horaires" checked={options.showTimes} onChange={(showTimes) => change({ showTimes })} />
-            <OptionToggle label="Signature PlaniLux" checked={options.showLogo} onChange={(showLogo) => change({ showLogo })} />
-            <OptionToggle label="Fond blanc (éco-encre)" checked={options.whiteBackground} onChange={(whiteBackground) => change({ whiteBackground })} />
+            <OptionToggle label="Afficher le logo PlaniLux" checked={options.showLogo} onChange={(showLogo) => change({ showLogo })} />
+            <OptionToggle label="Sans couleurs (économie d’encre)" checked={options.whiteBackground} onChange={(whiteBackground) => change({ whiteBackground })} />
           </section>
 
           <section className="option-group font-option-group">

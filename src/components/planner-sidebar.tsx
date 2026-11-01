@@ -64,22 +64,21 @@ export function PlannerSidebar({
           <button className="icon-button sidebar-close" aria-label="Fermer le menu" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <button className="workspace-switcher" onClick={onOpenSettings} aria-label="Paramètres de l'espace">
+        <button className="workspace-switcher" onClick={onOpenSettings} aria-label="Paramètres de l’espace">
           <span className="workspace-avatar">{workspaceName.charAt(0).toUpperCase()}</span>
-          <span className="workspace-copy"><strong>{workspaceName}</strong><small>Offre personnelle</small></span>
+          <span className="workspace-copy"><strong>{workspaceName}</strong></span>
           <ChevronDown size={15} className="workspace-chevron" />
         </button>
 
         <button className="primary-create" onClick={onCreate}>
           <span className="create-plus"><Plus size={17} /></span>
           <span>Nouveau tableau</span>
-          <span className="shortcut">Créer</span>
         </button>
 
         <div className="nav-section-label">ESPACE DE TRAVAIL</div>
         <nav className="side-nav" aria-label="Navigation principale">
           <button className={`nav-item ${view === "overview" ? "nav-active" : ""}`} onClick={() => navigate("overview")}>
-            <Home size={17} /><span>Vue d’ensemble</span><span className="nav-counter">3</span>
+            <Home size={17} /><span>Vue d’ensemble</span>
           </button>
           <button className={`nav-item ${view === "boards" || view === "editor" ? "nav-active" : ""}`} onClick={() => navigate("boards")}>
             <LayoutGrid size={17} /><span>Mes tableaux</span><span className="nav-counter">{activeBoards.length}</span>
@@ -102,7 +101,6 @@ export function PlannerSidebar({
           <button className={`nav-item ${view === "personal" ? "nav-active" : ""}`} onClick={() => navigate("personal")}>
             <span className="folder-dot folder-dot-green" /><span>Personnel</span><span className="folder-count">{activeBoards.filter((board) => board.kind !== "school").length}</span>
           </button>
-          <button className="nav-item" onClick={() => navigate("boards")}><FolderOpen size={16} /><span>Voir les dossiers</span></button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -116,17 +114,16 @@ export function PlannerSidebar({
           <button className="nav-item muted-nav" onClick={onOpenHelp}><BookOpen size={16} /><span>Centre d’aide</span><CircleHelp size={14} className="help-mark" /></button>
           <button className="nav-item muted-nav" onClick={onOpenSettings}><Settings2 size={16} /><span>Paramètres</span></button>
           <div className="sidebar-profile">
-            <div
+            <button
+              type="button"
               className="sidebar-profile-info"
               onClick={onOpenSettings}
-              role="button"
-              tabIndex={0}
-              style={{ cursor: "pointer", flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9 }}
+              style={{ cursor: "pointer", flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", padding: 0, textAlign: "left" }}
               title="Ouvrir mon profil & paramètres"
             >
               <div className="profile-avatar">{userInitials}</div>
-              <div className="profile-copy"><strong>{userName}</strong><span>{userFirst.toLowerCase()}@email.fr</span></div>
-            </div>
+              <div className="profile-copy"><strong>{userName}</strong><span>Espace personnel</span></div>
+            </button>
             <button
               className="tiny-icon-button sidebar-logout-btn"
               aria-label="Se déconnecter"

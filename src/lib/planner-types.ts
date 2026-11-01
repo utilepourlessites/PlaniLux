@@ -11,6 +11,9 @@ export type ScheduleEvent = {
   teacher?: string;
   color: string;
   notes?: string;
+  recurrence?: "weekly" | "none";
+  validFrom?: string;
+  validTo?: string;
 };
 
 export type PlannerBoard = {

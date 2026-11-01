@@ -61,6 +61,8 @@ export function SettingsDialog({
   onToast,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "data">("appearance");
+  const [pendingImport, setPendingImport] = useState<PlannerBoard[] | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
@@ -76,7 +78,7 @@ export function SettingsDialog({
       downloadAnchor.remove();
       onToast("Sauvegarde téléchargée avec succès");
     } catch {
-      onToast("Erreur lors de l'exportation de la sauvegarde");
+      onToast("Erreur lors de l’exportation de la sauvegarde");
     }
   };
 
@@ -89,8 +91,7 @@ export function SettingsDialog({
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id && parsed[0].title) {
-          onImportBoards(parsed as PlannerBoard[]);
-          onToast(`${parsed.length} tableau(x) importé(s)`);
+          setPendingImport(parsed as PlannerBoard[]);
         } else {
           onToast("Format de fichier non reconnu");
         }
@@ -100,6 +101,23 @@ export function SettingsDialog({
     };
     reader.readAsText(file);
     event.target.value = "";
+  };
+
+  const applyMergeImport = () => {
+    if (!pendingImport) return;
+    const existingMap = new Map(boards.map((b) => [b.id, b]));
+    for (const item of pendingImport) {
+      existingMap.set(item.id, item);
+    }
+    const merged = Array.from(existingMap.values());
+    onImportBoards(merged);
+    setPendingImport(null);
+  };
+
+  const applyReplaceImport = () => {
+    if (!pendingImport) return;
+    onImportBoards(pendingImport);
+    setPendingImport(null);
   };
 
   return (
@@ -383,17 +401,62 @@ export function SettingsDialog({
                   </div>
                   <button
                     className="button-quiet text-danger"
-                    onClick={() => {
-                      if (window.confirm("Voulez-vous vraiment réinitialiser les tableaux aux exemples de départ ?")) {
-                        onResetDefaults();
-                        onToast("Tableaux réinitialisés aux exemples d'origine");
-                      }
-                    }}
+                    onClick={() => setConfirmReset(true)}
                   >
                     <RotateCcw size={14} /> Réinitialiser
                   </button>
                 </div>
               </div>
+
+              {pendingImport && (
+                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "var(--surface-soft)", border: "1px solid var(--line)" }}>
+                  <strong style={{ display: "block", marginBottom: 6 }}>
+                    Importer {pendingImport.length} tableau(x)
+                  </strong>
+                  <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "var(--muted)" }}>
+                    Choisis comment intégrer ces plannings à ton espace :
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button type="button" className="button-primary" onClick={applyMergeImport}>
+                      Fusionner avec mes tableaux
+                    </button>
+                    <button type="button" className="button-secondary text-danger" onClick={applyReplaceImport}>
+                      Remplacer tout
+                    </button>
+                    <button type="button" className="button-quiet" onClick={() => setPendingImport(null)}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {confirmReset && (
+                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "#fff5f5", border: "1px solid #fed7d7" }}>
+                  <strong style={{ display: "block", marginBottom: 6, color: "#c53030" }}>
+                    Confirmer la réinitialisation ?
+                  </strong>
+                  <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "#9b2c2c" }}>
+                    Cette action restaure les exemples de départ et réinitialise tes plannings actuels.
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="button-primary"
+                      style={{ background: "#c53030", borderColor: "#c53030" }}
+                      onClick={() => {
+                        setConfirmReset(false);
+                        onResetDefaults();
+                        onToast("Tableaux réinitialisés aux exemples d’origine");
+                      }}
+                    >
+                      Oui, réinitialiser
+                    </button>
+                    <button type="button" className="button-quiet" onClick={() => setConfirmReset(false)}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

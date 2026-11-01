@@ -25,9 +25,10 @@ function PreviewPattern({ board }: { board: PlannerBoard }) {
   );
 }
 
-function BoardCard({ board, trash, onOpen, onDuplicate, onFavorite, onArchive, onRestore, onDelete }: {
+function BoardCard({ board, trash, userName, onOpen, onDuplicate, onFavorite, onArchive, onRestore, onDelete }: {
   board: PlannerBoard;
   trash: boolean;
+  userName?: string;
   onOpen: () => void;
   onDuplicate: () => void;
   onFavorite: () => void;
@@ -51,17 +52,15 @@ function BoardCard({ board, trash, onOpen, onDuplicate, onFavorite, onArchive, o
 
   const handleOpen = () => {
     if (trash) {
-      if (window.confirm("Ce tableau est actuellement dans la corbeille. Voulez-vous le restaurer pour l'ouvrir ?")) {
-        onRestore();
-        onOpen();
-      }
-      return;
+      onRestore();
     }
     onOpen();
   };
 
   const menuAction = (action: () => void) => { action(); setMenuOpen(false); };
   const updated = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(board.updatedAt));
+  const ownerInitials = (userName || "Camille Moreau").trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const ownerName = userName ? userName.split(" ")[0] : "Camille";
 
   return (
     <article className={`board-card ${trash ? "board-card-trashed" : ""}`}>
@@ -75,7 +74,32 @@ function BoardCard({ board, trash, onOpen, onDuplicate, onFavorite, onArchive, o
         <div className="board-card-meta"><span><CalendarDays size={13} /> {board.events.length} créneau{board.events.length === 1 ? "" : "x"}</span><i />Mis à jour le {updated}</div>
         <div className="board-card-footer">
           <span className="board-color-indicator" style={{ background: board.color }} />
-          <span className="board-owner"><span>CM</span> Camille</span>
+          <span className="board-owner"><span>{ownerInitials}</span> {ownerName}</span>
+          {trash && (
+            <button
+              type="button"
+              className="btn-restore-card-visible"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRestore();
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "4px 8px",
+                fontSize: "0.75rem",
+                borderRadius: 5,
+                border: "1px solid var(--violet)",
+                color: "var(--violet)",
+                background: "var(--surface)",
+                cursor: "pointer",
+                marginRight: "auto",
+              }}
+            >
+              <ArchiveRestore size={12} /> Restaurer
+            </button>
+          )}
           <div className="card-menu-wrap" ref={menuRef}>
             <button className="card-menu-trigger" aria-label="Options du tableau" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Ellipsis size={18} /></button>
             {menuOpen && <div className="card-menu" role="menu">
@@ -105,7 +129,7 @@ const emptyCopy: Record<PlannerView, { icon: typeof LayoutGrid; title: string; t
   personal: { icon: LayoutGrid, title: "Un peu de place pour tes projets", text: "Crée un planning personnel pour tes idées et tes routines." },
 };
 
-export function BoardLibrary({ view, boards, query, onCreate, onOpen, onDuplicate, onFavorite, onArchive, onRestore, onDelete, onClearSearch }: {
+export function BoardLibrary({ view, boards, query, onCreate, onOpen, onDuplicate, onFavorite, onArchive, onRestore, onDelete, onClearSearch, userName }: {
   view: PlannerView;
   boards: PlannerBoard[];
   query: string;
@@ -117,6 +141,7 @@ export function BoardLibrary({ view, boards, query, onCreate, onOpen, onDuplicat
   onRestore: (board: PlannerBoard) => void;
   onDelete: (board: PlannerBoard) => void;
   onClearSearch: () => void;
+  userName?: string;
 }) {
   const isTrash = view === "trash";
   const label = view === "starred" ? "TES INDISPENSABLES" : isTrash ? "RANGÉS POUR PLUS TARD" : view === "university" ? "COURS & SEMESTRES" : view === "personal" ? "PROJETS & TEMPS POUR TOI" : "TOUT TON UNIVERS";
@@ -178,7 +203,7 @@ export function BoardLibrary({ view, boards, query, onCreate, onOpen, onDuplicat
       </div>
 
       {sortedBoards.length ? <div className={`board-library-grid ${layout === "list" ? "board-library-list" : ""}`}>
-        {sortedBoards.map((board: PlannerBoard) => <BoardCard key={board.id} board={board} trash={isTrash} onOpen={() => onOpen(board.id)} onDuplicate={() => onDuplicate(board)} onFavorite={() => onFavorite(board)} onArchive={() => onArchive(board)} onRestore={() => onRestore(board)} onDelete={() => onDelete(board)} />)}
+        {sortedBoards.map((board: PlannerBoard) => <BoardCard key={board.id} board={board} trash={isTrash} userName={userName} onOpen={() => onOpen(board.id)} onDuplicate={() => onDuplicate(board)} onFavorite={() => onFavorite(board)} onArchive={() => onArchive(board)} onRestore={() => onRestore(board)} onDelete={() => onDelete(board)} />)}
         {!isTrash && view !== "starred" && <button className="new-board-card" onClick={onCreate}><span className="new-board-plus"><Plus size={21} /></span><strong>Créer un tableau</strong><small>La prochaine belle idée commence ici.</small></button>}
       </div> : <section className="empty-state library-empty"><span className="empty-icon"><EmptyIcon size={24} /></span><h2>{query ? "Aucun résultat" : empty.title}</h2><p>{query ? "Essaie un autre mot-clé, ou efface ta recherche." : empty.text}</p>{query ? <button className="button-quiet" onClick={onClearSearch}>Effacer la recherche</button> : !isTrash && view !== "starred" && <button className="button-primary" onClick={onCreate}><Plus size={16} /> Créer mon premier tableau</button>}</section>}
       <div className="library-footnote"><Undo2 size={14} /> Tes tableaux supprimés restent ici jusqu’à ce que tu décides de les effacer.</div>

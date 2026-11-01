@@ -65,7 +65,7 @@ export function MonthlyPlanner({ board, onEventSave, onEventDelete, onToast }: {
         </div>
       </div>
       <div className="month-planner-footer"><span><i /> {monthEvents.length} rendez-vous ce mois-ci</span><span><Sparkles size={13} /> Prévois aussi du temps pour l’imprévu.</span><div className="month-bottom-arrows"><button aria-label="Mois précédent" onClick={() => setMonth(new Date(year, monthIndex - 1, 1))}><ArrowLeft size={14} /></button><button aria-label="Mois suivant" onClick={() => setMonth(new Date(year, monthIndex + 1, 1))}><ArrowRight size={14} /></button></div></div>
-      {editing && <EventDialog event={editing.id ? editing : null} initialDay={editing.day} initialStart={editing.start} initialDate={newDate} monthly onClose={() => setEditing(null)} onSave={(event) => {
+      {editing && <EventDialog event={editing.id ? editing : null} initialDay={editing.day} initialStart={editing.start} initialDate={newDate} monthly existingEvents={board.events} onClose={() => setEditing(null)} onSave={(event) => {
         if (!event.date) { onToast("Choisis une date pour ce créneau"); return; }
         if (event.end <= event.start) { onToast("L’heure de fin doit être après celle du début"); return; }
         onEventSave(event);
