@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { makeDefaultBoards } from "@/lib/templates";
 import { validateBoardCreate } from "@/lib/board-validation";
 import { rowToBoard, type BoardRow } from "@/lib/board-mapper";
 
@@ -14,35 +13,12 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return unauthorized();
 
-    // Première connexion : on crée les tableaux d'exemple pour CET utilisateur, une seule fois.
-    // La mise à jour conditionnelle est atomique : deux requêtes simultanées ne sèment qu'une fois.
-    const { data: claimed } = await supabase
-      .from("profiles")
-      .update({ boards_seeded: true })
-      .eq("id", user.id)
-      .eq("boards_seeded", false)
-      .select("id");
-    if (claimed && claimed.length > 0) {
-      const seeds = makeDefaultBoards().map((board) => ({
-        user_id: user.id,
-        title: board.title,
-        kind: board.kind,
-        color: board.color,
-        events: board.events,
-        favorite: board.favorite,
-        is_deleted: false,
-      }));
-      const { error: seedError } = await supabase.from("planner_boards").insert(seeds);
-      if (seedError) {
-        console.error("Unable to seed planner boards", seedError);
-        await supabase.from("profiles").update({ boards_seeded: false }).eq("id", user.id);
-      }
-    }
-
     const { data, error } = await supabase
       .from("planner_boards")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: true });
+
     if (error) throw error;
     return NextResponse.json((data as BoardRow[]).map(rowToBoard));
   } catch (error) {
@@ -76,5 +52,24 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Unable to create planner board", error);
     return NextResponse.json({ error: "Impossible de créer le tableau." }, { status: 500 });
+  }
+}
+
+export async function DELETE() {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return unauthorized();
+
+    const { error } = await supabase
+      .from("planner_boards")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Unable to clear planner boards", error);
+    return NextResponse.json({ error: "Impossible de réinitialiser les tableaux." }, { status: 500 });
   }
 }

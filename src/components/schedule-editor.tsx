@@ -35,7 +35,7 @@ function createWeek(offset: number) {
   });
 }
 
-export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onEventSave, onEventDelete, onToast }: {
+export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onEventSave, onEventDelete, onToast, syncStatus = "saved" }: {
   board: PlannerBoard;
   onBoardChange: (board: PlannerBoard) => void;
   onBack: () => void;
@@ -43,6 +43,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
   onEventSave: (event: ScheduleEvent) => void;
   onEventDelete: (id: string) => void;
   onToast: (message: string) => void;
+  syncStatus?: "saving" | "saved" | "error" | "idle";
 }) {
   const [mode, setMode] = useState<"timeline" | "matrix">("timeline");
   const [density, setDensity] = useState<keyof typeof baseHourHeight>("Normal");
@@ -139,7 +140,10 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
             <p>{board.events.length} note{board.events.length === 1 ? "" : "s"} dans ton mois <span>·</span> synchronisé automatiquement</p>
           </div>
           <div className="editor-heading-actions">
-            <span className="autosave-status"><i /> Enregistré</span>
+            <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
+              <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
+              {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
+            </span>
             <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export">
               <Printer size={15} /> Imprimer & Exporter
             </button>
@@ -169,7 +173,10 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
           <p>{board.events.length} créneau{board.events.length === 1 ? "" : "x"} organisé{board.events.length === 1 ? "" : "s"} avec soin <span>·</span> synchronisé automatiquement</p>
         </div>
         <div className="editor-heading-actions">
-          <span className="autosave-status"><i /> Enregistré</span>
+          <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
+            <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
+            {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
+          </span>
           <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export">
             <Printer size={15} /> Imprimer & Exporter
           </button>

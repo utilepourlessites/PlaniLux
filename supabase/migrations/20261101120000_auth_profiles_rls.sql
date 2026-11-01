@@ -2,7 +2,7 @@
 -- Idempotente : peut être rejouée sans erreur.
 
 -- ============================================================
--- 0. Table des tableaux (existe déjà en production ; créée ici pour les environnements neufs)
+-- 0. Table des tableaux (création propre si environnement neuf)
 -- ============================================================
 create table if not exists public.planner_boards (
   id uuid primary key default gen_random_uuid(),
@@ -21,13 +21,15 @@ create table if not exists public.planner_boards (
 -- ============================================================
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  display_name text check (display_name is null or char_length(display_name) <= 80),
-  boards_seeded boolean not null default false,
+  display_name text not null default '' check (char_length(display_name) <= 60),
+  workspace_name text not null default '' check (char_length(workspace_name) <= 60),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table public.profiles add column if not exists workspace_name text not null default '' check (char_length(workspace_name) <= 60);
 alter table public.profiles enable row level security;
+alter table public.profiles force row level security;
 revoke all on public.profiles from anon;
 
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -39,8 +41,6 @@ create policy "profiles_update_own" on public.profiles
   for update to authenticated
   using ((select auth.uid()) = id)
   with check ((select auth.uid()) = id);
--- Pas de politique INSERT/DELETE : la création passe par le déclencheur ci-dessous,
--- la suppression suit celle du compte (on delete cascade).
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -49,10 +49,11 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, display_name)
+  insert into public.profiles (id, display_name, workspace_name)
   values (
     new.id,
-    left(coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(new.email, '@', 1)), 80)
+    coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), ''),
+    ''
   )
   on conflict (id) do nothing;
   return new;
@@ -66,9 +67,9 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Comptes déjà existants (créés avant cette migration)
-insert into public.profiles (id, display_name)
-select u.id, left(coalesce(nullif(u.raw_user_meta_data ->> 'full_name', ''), split_part(u.email, '@', 1)), 80)
+-- Comptes déjà existants
+insert into public.profiles (id, display_name, workspace_name)
+select u.id, coalesce(nullif(u.raw_user_meta_data ->> 'full_name', ''), ''), ''
 from auth.users u
 on conflict (id) do nothing;
 
@@ -102,33 +103,36 @@ create trigger planner_boards_set_updated_at
 alter table public.planner_boards
   add column if not exists user_id uuid references auth.users (id) on delete cascade default auth.uid();
 
-create index if not exists planner_boards_user_id_idx on public.planner_boards (user_id);
+create index if not exists planner_boards_user_updated_idx on public.planner_boards (user_id, updated_at desc);
 
--- NOTE : les lignes déjà présentes ont user_id NULL, donc invisibles pour tout le monde.
--- Voir supabase/manual/01_lignes_existantes.sql pour les supprimer ou les attribuer.
-
--- Contraintes « not valid » : appliquées aux nouvelles écritures sans bloquer d'éventuelles anciennes lignes.
+-- Contraintes de sécurité
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'planner_boards_kind_check') then
+  if not exists (select 1 from pg_constraint where conname = 'planner_boards_kind_chk') then
     alter table public.planner_boards
-      add constraint planner_boards_kind_check
+      add constraint planner_boards_kind_chk
       check (kind in ('school', 'weekly', 'monthly', 'daily', 'blank')) not valid;
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'planner_boards_title_check') then
+  if not exists (select 1 from pg_constraint where conname = 'planner_boards_title_chk') then
     alter table public.planner_boards
-      add constraint planner_boards_title_check
+      add constraint planner_boards_title_chk
       check (char_length(title) between 1 and 100) not valid;
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'planner_boards_events_check') then
+  if not exists (select 1 from pg_constraint where conname = 'planner_boards_color_chk') then
     alter table public.planner_boards
-      add constraint planner_boards_events_check
-      check (jsonb_typeof(events) = 'array' and pg_column_size(events) < 1000000) not valid;
+      add constraint planner_boards_color_chk
+      check (color ~* '^#[0-9a-f]{3,8}$') not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'planner_boards_events_chk') then
+    alter table public.planner_boards
+      add constraint planner_boards_events_chk
+      check (jsonb_typeof(events) = 'array' and jsonb_array_length(events) <= 2000) not valid;
   end if;
 end
 $$;
 
 alter table public.planner_boards enable row level security;
+alter table public.planner_boards force row level security;
 revoke all on public.planner_boards from anon;
 
 drop policy if exists "boards_select_own" on public.planner_boards;

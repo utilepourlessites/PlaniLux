@@ -44,7 +44,7 @@ export function TemplateDialog({ onClose, onCreate }: { onClose: () => void; onC
           ))}
         </div>
         <label className="field-label template-name-label">Nom du tableau
-          <input className="text-input" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} placeholder="Ex. Semestre de printemps" />
+          <input className="text-input" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} placeholder="Titre du tableau" />
         </label>
         <div className="dialog-actions">
           <button className="button-quiet" onClick={onClose}>Annuler</button>

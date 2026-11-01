@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import {
   Check, Download, LogOut, Minus, Moon, Plus,
-  RotateCcw, Settings2, Sparkles, Sun, SunMedium, Type, Upload, UserRound, X,
+  Settings2, Sparkles, Sun, SunMedium, Trash2, Type, Upload, UserRound, X,
 } from "lucide-react";
 import type { PlannerBoard } from "@/lib/planner-types";
 
@@ -22,7 +22,8 @@ type Props = {
   onChangeWorkspaceName: (name: string) => void;
   boards: PlannerBoard[];
   onImportBoards: (boards: PlannerBoard[]) => void;
-  onResetDefaults: () => void;
+  onClearData: () => void;
+  onDeleteAccount: () => void;
   onLogout?: () => void;
   onToast: (message: string) => void;
 };
@@ -56,238 +57,196 @@ export function SettingsDialog({
   onChangeWorkspaceName,
   boards,
   onImportBoards,
-  onResetDefaults,
+  onClearData,
+  onDeleteAccount,
   onLogout,
   onToast,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "data">("appearance");
   const [pendingImport, setPendingImport] = useState<PlannerBoard[] | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmClearData, setConfirmClearData] = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deleteInputText, setDeleteInputText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
   const handleExportBackup = () => {
     try {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boards, null, 2));
-      const downloadAnchor = document.createElement("a");
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `PlaniLux-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      onToast("Sauvegarde téléchargée avec succès");
+      const payload = {
+        app: "PlaniLux",
+        version: "2.0",
+        exportedAt: new Date().toISOString(),
+        boards,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `planilux-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      onToast("Sauvegarde exportée avec succès");
     } catch {
-      onToast("Erreur lors de l’exportation de la sauvegarde");
+      onToast("Échec de l’export de la sauvegarde");
     }
   };
 
-  const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = () => {
       try {
-        const content = e.target?.result as string;
-        const parsed = JSON.parse(content);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id && parsed[0].title) {
-          setPendingImport(parsed as PlannerBoard[]);
-        } else {
-          onToast("Format de fichier non reconnu");
+        const text = String(reader.result ?? "");
+        if (text.length > 5 * 1024 * 1024) {
+          onToast("Fichier trop volumineux (max 5 Mo)");
+          return;
         }
+        const data = JSON.parse(text);
+        const imported = Array.isArray(data) ? data : (Array.isArray(data?.boards) ? data.boards : null);
+        if (!imported || !imported.length) {
+          onToast("Aucun tableau valide trouvé dans ce fichier");
+          return;
+        }
+        setPendingImport(imported as PlannerBoard[]);
       } catch {
-        onToast("Fichier JSON invalide");
+        onToast("Format JSON invalide");
       }
     };
     reader.readAsText(file);
-    event.target.value = "";
+    e.target.value = "";
   };
 
   const applyMergeImport = () => {
     if (!pendingImport) return;
-    const existingMap = new Map(boards.map((b) => [b.id, b]));
-    for (const item of pendingImport) {
-      existingMap.set(item.id, item);
-    }
-    const merged = Array.from(existingMap.values());
-    onImportBoards(merged);
-    setPendingImport(null);
-  };
-
-  const applyReplaceImport = () => {
-    if (!pendingImport) return;
     onImportBoards(pendingImport);
+    onToast(`${pendingImport.length} tableau(x) importé(s)`);
     setPendingImport(null);
   };
 
   return (
-    <div className="modal-scrim" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-header">
-          <div className="settings-title-wrap">
-            <span className="settings-icon-mark"><Settings2 size={18} /></span>
+    <div className="dialog-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="dialog-card settings-dialog-card"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Paramètres de l’application"
+      >
+        <div className="dialog-header">
+          <div className="settings-title-group">
+            <span className="settings-header-icon"><Settings2 size={18} /></span>
             <div>
-              <h2 id="settings-dialog-title">Paramètres</h2>
-              <p>Personnalise ton espace de travail et ton confort visuel.</p>
+              <h3>Paramètres</h3>
+              <p>Personnalisez votre confort visuel et votre espace.</p>
             </div>
           </div>
-          <button className="icon-button modal-close" onClick={onClose} aria-label="Fermer"><X size={17} /></button>
+          <button className="icon-button" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
 
-        <div className="settings-tabs" role="tablist">
+        <nav className="settings-tabs" aria-label="Sections des paramètres">
           <button
-            role="tab"
-            aria-selected={activeTab === "appearance"}
-            className={`settings-tab ${activeTab === "appearance" ? "is-active" : ""}`}
+            className={`settings-tab-btn ${activeTab === "appearance" ? "is-active" : ""}`}
             onClick={() => setActiveTab("appearance")}
           >
-            <Type size={15} /> Affichage & Écrits
+            <SunMedium size={15} /> Apparence
           </button>
           <button
-            role="tab"
-            aria-selected={activeTab === "profile"}
-            className={`settings-tab ${activeTab === "profile" ? "is-active" : ""}`}
+            className={`settings-tab-btn ${activeTab === "profile" ? "is-active" : ""}`}
             onClick={() => setActiveTab("profile")}
           >
             <UserRound size={15} /> Profil & Espace
           </button>
           <button
-            role="tab"
-            aria-selected={activeTab === "data"}
-            className={`settings-tab ${activeTab === "data" ? "is-active" : ""}`}
+            className={`settings-tab-btn ${activeTab === "data" ? "is-active" : ""}`}
             onClick={() => setActiveTab("data")}
           >
-            <RotateCcw size={15} /> Données & Sauvegarde
+            <Download size={15} /> Données & Sécurité
           </button>
-        </div>
+        </nav>
 
-        <div className="settings-body">
+        <div className="dialog-body settings-body">
           {activeTab === "appearance" && (
             <div className="settings-section">
               <div className="setting-card">
-                <div className="setting-card-head">
-                  <div className="setting-card-title">
-                    <span className="setting-tag"><Type size={14} /></span>
-                    <div>
-                      <strong>Taille des écrits</strong>
-                      <span>Ajuste la taille de la police et la lisibilité dans toute l’application.</span>
-                    </div>
+                <div className="setting-card-header">
+                  <div>
+                    <strong>Taille des écrits ({fontScale} %)</strong>
+                    <span>Ajustez l’échelle de l’ensemble des textes pour un confort de lecture optimal.</span>
                   </div>
-                  <div className="font-stepper">
-                    <button
-                      className="stepper-btn"
-                      onClick={() => onChangeFontScale(Math.max(75, fontScale - 5))}
-                      aria-label="Diminuer la taille des écrits"
-                      disabled={fontScale <= 75}
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="font-scale-number">{fontScale}%</span>
-                    <button
-                      className="stepper-btn"
-                      onClick={() => onChangeFontScale(Math.min(150, fontScale + 5))}
-                      aria-label="Augmenter la taille des écrits"
-                      disabled={fontScale >= 150}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                  <span className="setting-badge">{fontScale}%</span>
                 </div>
-
-                <div className="font-presets-row">
+                <div className="slider-control">
+                  <span className="slider-label">75 %</span>
+                  <input
+                    type="range"
+                    min="75"
+                    max="150"
+                    step="5"
+                    value={fontScale}
+                    onChange={(e) => onChangeFontScale(Number(e.target.value))}
+                    aria-label="Taille de police globale"
+                  />
+                  <span className="slider-label">150 %</span>
+                </div>
+                <div className="preset-chips">
                   {FONT_PRESETS.map((preset) => (
                     <button
                       key={preset.value}
-                      className={`font-preset-btn ${fontScale === preset.value ? "is-selected" : ""}`}
+                      className={`preset-chip ${fontScale === preset.value ? "is-active" : ""}`}
                       onClick={() => onChangeFontScale(preset.value)}
                     >
                       <strong>{preset.label}</strong>
-                      <small>{preset.value}%</small>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="font-preview-box">
-                  <div className="font-preview-header">
-                    <span>Aperçu en temps réel :</span>
-                    <span className="font-preview-tag">09:00 - 10:30 · Cours d’amphi</span>
-                  </div>
-                  <p className="font-preview-body">
-                    « Une organisation claire et bien lisible permet d’avancer l’esprit léger. »
-                  </p>
-                </div>
-              </div>
-
-              <div className="setting-card">
-                <div className="setting-card-head">
-                  <div className="setting-card-title">
-                    <span className="setting-tag"><SunMedium size={14} /></span>
-                    <div>
-                      <strong>Luminosité de l’écran</strong>
-                      <span>Ajuste l’intensité lumineuse du logiciel pour un confort visuel sur mesure.</span>
-                    </div>
-                  </div>
-                  <div className="font-stepper">
-                    <button
-                      className="stepper-btn"
-                      onClick={() => onChangeBrightness?.(Math.max(50, brightness - 5))}
-                      aria-label="Diminuer la luminosité"
-                      disabled={brightness <= 50}
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="font-scale-number">{brightness}%</span>
-                    <button
-                      className="stepper-btn"
-                      onClick={() => onChangeBrightness?.(Math.min(150, brightness + 5))}
-                      aria-label="Augmenter la luminosité"
-                      disabled={brightness >= 150}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="brightness-slider-row" style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0 10px" }}>
-                  <Sun size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
-                  <input
-                    type="range"
-                    min="50"
-                    max="150"
-                    step="5"
-                    value={brightness}
-                    onChange={(e) => onChangeBrightness?.(Number(e.target.value))}
-                    className="brightness-range"
-                    aria-label="Contrôle de luminosité"
-                    style={{ flex: 1, accentColor: "var(--violet)" }}
-                  />
-                  <SunMedium size={16} style={{ opacity: 0.9, flexShrink: 0 }} />
-                </div>
-
-                <div className="font-presets-row">
-                  {BRIGHTNESS_PRESETS.map((preset) => (
-                    <button
-                      key={preset.value}
-                      className={`font-preset-btn ${brightness === preset.value ? "is-selected" : ""}`}
-                      onClick={() => onChangeBrightness?.(preset.value)}
-                    >
-                      <strong>{preset.label}</strong>
-                      <small>{preset.value}%</small>
+                      <small>{preset.desc}</small>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="setting-card">
-                <div className="setting-card-head">
-                  <div className="setting-card-title">
-                    <span className="setting-tag">{dark ? <Moon size={14} /> : <Sun size={14} />}</span>
+              {onChangeBrightness && (
+                <div className="setting-card">
+                  <div className="setting-card-header">
                     <div>
-                      <strong>Thème visuel</strong>
-                      <span>Bascule entre le mode clair lumineux et le mode sombre apaisant.</span>
+                      <strong>Luminosité de l’espace ({brightness} %)</strong>
+                      <span>Atténuez ou rehaussez l’intensité lumineuse pour reposer vos yeux.</span>
                     </div>
+                    <span className="setting-badge">{brightness}%</span>
                   </div>
-                  <div className="theme-switch-group">
+                  <div className="slider-control">
+                    <span className="slider-label">50 %</span>
+                    <input
+                      type="range"
+                      min="50"
+                      max="150"
+                      step="5"
+                      value={brightness}
+                      onChange={(e) => onChangeBrightness(Number(e.target.value))}
+                      aria-label="Luminosité globale"
+                    />
+                    <span className="slider-label">150 %</span>
+                  </div>
+                  <div className="preset-chips">
+                    {BRIGHTNESS_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        className={`preset-chip ${brightness === preset.value ? "is-active" : ""}`}
+                        onClick={() => onChangeBrightness(preset.value)}
+                      >
+                        <strong>{preset.label}</strong>
+                        <small>{preset.desc}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="setting-card">
+                <div className="theme-selection-row">
+                  <div>
+                    <strong>Mode d’affichage</strong>
+                    <span>Basculez entre le thème clair et le thème sombre.</span>
+                  </div>
+                  <div className="theme-toggle-pills">
                     <button
                       className={`theme-pill ${!dark ? "is-active" : ""}`}
                       onClick={() => { if (dark) onToggleDark(); }}
@@ -310,15 +269,15 @@ export function SettingsDialog({
             <div className="settings-section">
               <div className="setting-card">
                 <label className="setting-field">
-                  <span>Ton prénom ou pseudo</span>
+                  <span>Votre prénom et nom</span>
                   <input
                     type="text"
                     value={userName}
                     onChange={(e) => onChangeUserName(e.target.value)}
-                    placeholder="Camille Moreau"
-                    maxLength={35}
+                    placeholder="Votre prénom et nom"
+                    maxLength={60}
                   />
-                  <small>Ce nom apparaît dans la salutation d’accueil et sur les cartes.</small>
+                  <small>Ce nom apparaît dans la salutation d’accueil et sur vos tableaux.</small>
                 </label>
               </div>
 
@@ -329,8 +288,8 @@ export function SettingsDialog({
                     type="text"
                     value={workspaceName}
                     onChange={(e) => onChangeWorkspaceName(e.target.value)}
-                    placeholder="Mon espace"
-                    maxLength={35}
+                    placeholder="Nom de votre espace"
+                    maxLength={60}
                   />
                   <small>Affiché en haut du menu latéral et dans le fil d’Ariane.</small>
                 </label>
@@ -340,9 +299,9 @@ export function SettingsDialog({
                 <div className="data-action-row">
                   <div>
                     <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <LogOut size={15} /> Session & Profil : {userName}
+                      <LogOut size={15} /> Session & Compte
                     </strong>
-                    <span>Fermer la session actuelle et revenir à l’écran de connexion PlaniLux.</span>
+                    <span>Fermer la session actuelle et revenir à l’écran de connexion.</span>
                   </div>
                   <button
                     type="button"
@@ -366,7 +325,7 @@ export function SettingsDialog({
                 <div className="data-action-row">
                   <div>
                     <strong>Exporter mes tableaux</strong>
-                    <span>Télécharge un fichier JSON contenant tous tes plannings et créneaux.</span>
+                    <span>Télécharge un fichier JSON contenant tous vos plannings et créneaux.</span>
                   </div>
                   <button className="button-secondary" onClick={handleExportBackup}>
                     <Download size={14} /> Exporter la sauvegarde
@@ -377,8 +336,8 @@ export function SettingsDialog({
               <div className="setting-card">
                 <div className="data-action-row">
                   <div>
-                    <strong>Importer une sauvegarde</strong>
-                    <span>Restaure tes tableaux depuis un fichier JSON précédemment exporté.</span>
+                    <strong>Importer des tableaux</strong>
+                    <span>Restaure des plannings depuis un fichier JSON précédemment exporté.</span>
                   </div>
                   <button className="button-secondary" onClick={() => fileInputRef.current?.click()}>
                     <Upload size={14} /> Importer un fichier
@@ -396,14 +355,29 @@ export function SettingsDialog({
               <div className="setting-card setting-card-danger">
                 <div className="data-action-row">
                   <div>
-                    <strong className="text-danger">Réinitialiser les exemples</strong>
-                    <span>Restaure les tableaux modèles initiaux (Université, Routines et Semaine).</span>
+                    <strong className="text-danger">Supprimer tous mes tableaux</strong>
+                    <span>Supprime définitivement l’ensemble de vos tableaux et créneaux.</span>
                   </div>
                   <button
                     className="button-quiet text-danger"
-                    onClick={() => setConfirmReset(true)}
+                    onClick={() => setConfirmClearData(true)}
                   >
-                    <RotateCcw size={14} /> Réinitialiser
+                    <Trash2 size={14} /> Tout effacer
+                  </button>
+                </div>
+              </div>
+
+              <div className="setting-card setting-card-danger" style={{ borderTop: "1px dashed #fed7d7", marginTop: 8 }}>
+                <div className="data-action-row">
+                  <div>
+                    <strong className="text-danger">Supprimer mon compte</strong>
+                    <span>Efface définitivement votre profil et toutes vos données sur PlaniLux.</span>
+                  </div>
+                  <button
+                    className="button-quiet text-danger"
+                    onClick={() => { setConfirmDeleteAccount(true); setDeleteInputText(""); }}
+                  >
+                    <Trash2 size={14} /> Supprimer le compte
                   </button>
                 </div>
               </div>
@@ -414,14 +388,11 @@ export function SettingsDialog({
                     Importer {pendingImport.length} tableau(x)
                   </strong>
                   <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                    Choisis comment intégrer ces plannings à ton espace :
+                    Intégrer ces plannings à votre espace personnel :
                   </p>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button type="button" className="button-primary" onClick={applyMergeImport}>
-                      Fusionner avec mes tableaux
-                    </button>
-                    <button type="button" className="button-secondary text-danger" onClick={applyReplaceImport}>
-                      Remplacer tout
+                      Importer mes tableaux
                     </button>
                     <button type="button" className="button-quiet" onClick={() => setPendingImport(null)}>
                       Annuler
@@ -430,13 +401,13 @@ export function SettingsDialog({
                 </div>
               )}
 
-              {confirmReset && (
+              {confirmClearData && (
                 <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "#fff5f5", border: "1px solid #fed7d7" }}>
                   <strong style={{ display: "block", marginBottom: 6, color: "#c53030" }}>
-                    Confirmer la réinitialisation ?
+                    Confirmer la suppression de tous les tableaux ?
                   </strong>
                   <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "#9b2c2c" }}>
-                    Cette action restaure les exemples de départ et réinitialise tes plannings actuels.
+                    Cette action efface définitivement tous vos plannings de la base de données.
                   </p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
@@ -444,14 +415,48 @@ export function SettingsDialog({
                       className="button-primary"
                       style={{ background: "#c53030", borderColor: "#c53030" }}
                       onClick={() => {
-                        setConfirmReset(false);
-                        onResetDefaults();
-                        onToast("Tableaux réinitialisés aux exemples d’origine");
+                        setConfirmClearData(false);
+                        onClearData();
                       }}
                     >
-                      Oui, réinitialiser
+                      Oui, tout supprimer
                     </button>
-                    <button type="button" className="button-quiet" onClick={() => setConfirmReset(false)}>
+                    <button type="button" className="button-quiet" onClick={() => setConfirmClearData(false)}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {confirmDeleteAccount && (
+                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "#fff5f5", border: "1px solid #fed7d7" }}>
+                  <strong style={{ display: "block", marginBottom: 6, color: "#c53030" }}>
+                    Confirmer la suppression définitive de votre compte ?
+                  </strong>
+                  <p style={{ margin: "0 0 8px", fontSize: "0.8125rem", color: "#9b2c2c" }}>
+                    Tapez <strong>SUPPRIMER</strong> ci-dessous pour confirmer :
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteInputText}
+                    onChange={(e) => setDeleteInputText(e.target.value)}
+                    placeholder="SUPPRIMER"
+                    style={{ marginBottom: 12, padding: "6px 10px", borderRadius: 6, border: "1px solid #feb2b2", width: "100%", maxWidth: 220 }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={deleteInputText !== "SUPPRIMER"}
+                      className="button-primary"
+                      style={{ background: deleteInputText === "SUPPRIMER" ? "#c53030" : "#cbd5e0", borderColor: "transparent" }}
+                      onClick={() => {
+                        setConfirmDeleteAccount(false);
+                        onDeleteAccount();
+                      }}
+                    >
+                      Supprimer définitivement
+                    </button>
+                    <button type="button" className="button-quiet" onClick={() => setConfirmDeleteAccount(false)}>
                       Annuler
                     </button>
                   </div>
@@ -463,11 +468,9 @@ export function SettingsDialog({
 
         <div className="settings-footer">
           <span className="settings-autosave-note">
-            <Sparkles size={13} /> Les modifications s’appliquent immédiatement.
+            <Check size={13} /> Les préférences d’affichage sont mémorisées sur cet appareil.
           </span>
-          <button className="button-primary" onClick={onClose}>
-            <Check size={15} /> Terminé
-          </button>
+          <button className="button-primary" onClick={onClose}>Terminer</button>
         </div>
       </div>
     </div>

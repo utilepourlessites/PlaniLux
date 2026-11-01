@@ -1177,29 +1177,7 @@
   padding: 0 10px;
 }
 
-.btn-guest-access {
-  width: 100%;
-  padding: 10px 16px;
-  border: 1px solid var(--line-strong, #e2e0e8);
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-soft, #575762);
-  background: var(--surface-soft, #fbfaf8);
-  cursor: pointer;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.15s ease;
-}
 
-.btn-guest-access:hover {
-  border-color: #cfc7e8;
-  background: #ffffff;
-  color: var(--ink, #292a34);
-}
 
 .auth-footer-note {
   margin-top: 22px;

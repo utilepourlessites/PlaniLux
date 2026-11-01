@@ -46,7 +46,26 @@ export function validateEvent(input: unknown): Result<ScheduleEvent> {
   return { ok: true, value: event };
 }
 
+export function validateProfileUpdate(input: unknown): Result<{ displayName?: string; workspaceName?: string }> {
+  if (!isRecord(input)) return fail("Données de profil invalides.");
+  const result: { displayName?: string; workspaceName?: string } = {};
+  if (input.displayName !== undefined) {
+    if (typeof input.displayName !== "string" || input.displayName.length > 60) {
+      return fail("Le nom d'affichage ne doit pas dépasser 60 caractères.");
+    }
+    result.displayName = input.displayName.trim();
+  }
+  if (input.workspaceName !== undefined) {
+    if (typeof input.workspaceName !== "string" || input.workspaceName.length > 60) {
+      return fail("Le nom de l'espace ne doit pas dépasser 60 caractères.");
+    }
+    result.workspaceName = input.workspaceName.trim();
+  }
+  return { ok: true, value: result };
+}
+
 export function validateEvents(input: unknown): Result<ScheduleEvent[]> {
+
   if (!Array.isArray(input)) return fail("La liste d'événements est invalide.");
   if (input.length > MAX_EVENTS) return fail(`Un tableau ne peut pas dépasser ${MAX_EVENTS} événements.`);
   const events: ScheduleEvent[] = [];

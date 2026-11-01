@@ -59,8 +59,8 @@ function BoardCard({ board, trash, userName, onOpen, onDuplicate, onFavorite, on
 
   const menuAction = (action: () => void) => { action(); setMenuOpen(false); };
   const updated = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(board.updatedAt));
-  const ownerInitials = (userName || "Camille Moreau").trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  const ownerName = userName ? userName.split(" ")[0] : "Camille";
+  const ownerInitials = (userName || "M").trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "M";
+  const ownerName = userName ? userName.split(" ")[0] : "Moi";
 
   return (
     <article className={`board-card ${trash ? "board-card-trashed" : ""}`}>

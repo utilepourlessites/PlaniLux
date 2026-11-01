@@ -14,82 +14,23 @@ import { TemplateDialog } from "@/components/template-dialog";
 import { ExportStudio } from "@/components/export-studio";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { HelpDialog } from "@/components/help-dialog";
-import { makeDefaultBoards, makeTemplate } from "@/lib/templates";
-import type { User } from "@supabase/supabase-js";
+import { makeTemplate } from "@/lib/templates";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BOARD_KIND_LABELS } from "@/lib/planner-types";
 import type { BoardKind, PlannerBoard, ScheduleEvent } from "@/lib/planner-types";
 
-type UserResponse = { data: { user: User | null } };
-
-const LOCAL_KEY = "planilux-boards-v1";
 const THEME_KEY = "planilux-theme";
 const FONT_SCALE_KEY = "planilux-font-scale";
 const BRIGHTNESS_KEY = "planilux-brightness";
-const USER_NAME_KEY = "planilux-user-name";
-const PENDING_KEY = "planilux-pending-sync-v1";
 const DEFAULT_USER_NAME = "Mon compte";
-
-function readPending(): string[] {
-  try {
-    const value = window.localStorage.getItem(PENDING_KEY);
-    const parsed = value ? JSON.parse(value) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writePending(ids: string[]) {
-  try { window.localStorage.setItem(PENDING_KEY, JSON.stringify([...new Set(ids)])); } catch {}
-}
-
-function markPending(id: string, pending: boolean) {
-  const current = readPending().filter((item) => item !== id);
-  writePending(pending ? [...current, id] : current);
-}
-
-/** Envoie un tableau au serveur ; renvoie le tableau enregistré, ou null en cas d'échec (il reste alors « en attente »). */
-async function pushBoard(board: PlannerBoard, method: "POST" | "PATCH"): Promise<PlannerBoard | null> {
-  try {
-    const response = await fetch(method === "POST" ? "/api/boards" : `/api/boards/${board.id}`, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(board),
-    });
-    if (response.status === 401) { window.location.href = "/login"; return null; }
-    if (response.status === 409) { markPending(board.id, false); return null; }
-    if (!response.ok) { markPending(board.id, true); return null; }
-    markPending(board.id, false);
-    return await response.json() as PlannerBoard;
-  } catch {
-    markPending(board.id, true);
-    return null;
-  }
-}
-const WORKSPACE_NAME_KEY = "planilux-workspace-name";
-
-function readLocalBoards(): PlannerBoard[] {
-  try {
-    const value = window.localStorage.getItem(LOCAL_KEY);
-    return value ? JSON.parse(value) as PlannerBoard[] : [];
-  } catch {
-    return [];
-  }
-}
 
 const emptySubscribe = () => () => {};
 
 export function PlannerApp() {
   const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
-  const [boards, setBoards] = useState<PlannerBoard[]>(() => {
-    if (typeof window !== "undefined") {
-      const local = readLocalBoards();
-      if (local.length) return local;
-      return makeDefaultBoards();
-    }
-    return [];
-  });
+  const [boards, setBoards] = useState<PlannerBoard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [view, setView] = useState<PlannerView>("overview");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -117,20 +58,9 @@ export function PlannerApp() {
     return 100;
   });
   const [brightnessOpen, setBrightnessOpen] = useState(false);
-  const [userName, setUserName] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = window.localStorage.getItem(USER_NAME_KEY);
-      if (saved) return saved;
-    }
-    return DEFAULT_USER_NAME;
-  });
-  const [workspaceName, setWorkspaceName] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = window.localStorage.getItem(WORKSPACE_NAME_KEY);
-      if (saved) return saved;
-    }
-    return "Mon espace";
-  });
+  const [userName, setUserName] = useState<string>("");
+  const [workspaceName, setWorkspaceName] = useState<string>("");
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -166,14 +96,39 @@ export function PlannerApp() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    toastMessage("Déconnexion de PlaniLux…");
-    try { await getSupabaseBrowserClient()?.auth.signOut(); } catch {}
-    // Un autre utilisateur ne doit jamais retrouver les données du précédent sur ce navigateur.
+    toastMessage("Déconnexion en cours…");
     try {
-      [LOCAL_KEY, USER_NAME_KEY, WORKSPACE_NAME_KEY, PENDING_KEY].forEach((key) => window.localStorage.removeItem(key));
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) await supabase.auth.signOut();
+    } catch {}
+    try {
+      window.localStorage.clear();
     } catch {}
     window.location.href = "/login";
   }, [toastMessage]);
+
+  const handleClearData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/boards", { method: "DELETE" });
+      if (!res.ok) throw new Error("Erreur de suppression");
+      setBoards([]);
+      setActiveId(null);
+      setView("overview");
+      toastMessage("Tous les tableaux ont été supprimés");
+    } catch {
+      toastMessage("Échec de la suppression des tableaux");
+    }
+  }, [toastMessage]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) throw new Error("Erreur de suppression de compte");
+      handleLogout();
+    } catch {
+      toastMessage("Échec de la suppression du compte");
+    }
+  }, [handleLogout, toastMessage]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(THEME_KEY);
@@ -198,50 +153,32 @@ export function PlannerApp() {
     }
 
     let cancelled = false;
-    const local = readLocalBoards();
-    const pending = new Set(readPending());
 
-    // Nom d'affichage : la source de vérité est le profil en base (le cache local n'est qu'un confort).
-    const supabase = getSupabaseBrowserClient();
-    if (supabase) {
-      supabase.auth.getUser().then(async ({ data: { user } }: UserResponse) => {
-        if (!user || cancelled) return;
-        const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
-        const fallback = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : user.email?.split("@")[0];
-        const display = profile?.display_name || fallback;
-        if (display && !cancelled) {
-          setUserName(display);
-          try { window.localStorage.setItem(USER_NAME_KEY, display); } catch {}
-        }
-      }).catch(() => undefined);
-    }
+    // Charger le profil utilisateur
+    fetch("/api/profile", { cache: "no-store" })
+      .then(async (res) => {
+        if (res.status === 401) { window.location.href = "/login"; return; }
+        if (!res.ok) return;
+        const profile = await res.json();
+        if (cancelled) return;
+        if (profile.displayName) setUserName(profile.displayName);
+        if (profile.workspaceName) setWorkspaceName(profile.workspaceName);
+      })
+      .catch(() => undefined);
 
-    fetch("/api/boards", { cache: "no-store" }).then(async (response) => {
-      if (response.status === 401) { window.location.href = "/login"; return; }
-      if (!response.ok) throw new Error("offline");
-      const remote = await response.json() as PlannerBoard[];
-      if (cancelled || !Array.isArray(remote)) return;
-      const localById = new Map(local.map((board) => [board.id, board]));
-      const remoteIds = new Set(remote.map((board) => board.id));
-      // Le serveur fait foi. On ne garde le local que s'il est plus récent ET en attente d'envoi
-      // (évite de ressusciter des tableaux supprimés ailleurs).
-      const merged = remote.map((board) => {
-        const localBoard = localById.get(board.id);
-        if (localBoard && pending.has(board.id) && new Date(localBoard.updatedAt).getTime() > new Date(board.updatedAt).getTime()) {
-          void pushBoard(localBoard, "PATCH");
-          return localBoard;
-        }
-        return board;
+    // Charger les tableaux depuis l'API
+    fetch("/api/boards", { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 401) { window.location.href = "/login"; return; }
+        if (!response.ok) throw new Error("Erreur de chargement");
+        const remote = await response.json() as PlannerBoard[];
+        if (cancelled || !Array.isArray(remote)) return;
+        setBoards(remote);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
       });
-      for (const board of local) {
-        if (!remoteIds.has(board.id) && pending.has(board.id)) {
-          merged.push(board);
-          void pushBoard(board, "POST");
-        }
-      }
-      setBoards(merged);
-      window.localStorage.setItem(LOCAL_KEY, JSON.stringify(merged));
-    }).catch(() => undefined);
 
     return () => { cancelled = true; };
   }, []);
@@ -269,34 +206,53 @@ export function PlannerApp() {
   }, [brightnessOpen]);
 
   useEffect(() => {
-    const focusSearch = (event: KeyboardEvent) => {
+    const handleKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchRef.current?.focus();
       }
     };
-    window.addEventListener("keydown", focusSearch);
-    return () => window.removeEventListener("keydown", focusSearch);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  const persistLocal = useCallback((next: PlannerBoard[]) => {
-    setBoards(next);
-    try { window.localStorage.setItem(LOCAL_KEY, JSON.stringify(next)); } catch { /* Storage can be unavailable in private mode. */ }
-  }, []);
-
-  const commitBoard = useCallback((board: PlannerBoard, isNew = false) => {
+  const commitBoard = async (board: PlannerBoard, isNew = false) => {
     const exists = boards.some((item) => item.id === board.id);
     const next = exists ? boards.map((item) => item.id === board.id ? board : item) : [board, ...boards];
-    persistLocal(next);
-    const method = isNew || !exists ? "POST" : "PATCH";
-    void pushBoard(board, method).then((saved) => {
-      if (saved?.id) {
-        persistLocal(next.map((item) => item.id === saved.id ? { ...item, ...saved } : item));
-      }
-    });
-  }, [boards, persistLocal]);
+    setBoards(next);
+    setSyncStatus("saving");
 
-  const createBoard = (kind: BoardKind, title: string) => {
+    const method = isNew || !exists ? "POST" : "PATCH";
+    try {
+      const response = await fetch(method === "POST" ? "/api/boards" : `/api/boards/${board.id}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(board),
+      });
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok) {
+        setSyncStatus("error");
+        toastMessage("Échec de la synchronisation sur le serveur");
+        return;
+      }
+
+      const saved = await response.json() as PlannerBoard;
+      if (saved.id) {
+        setBoards((prev) => prev.map((item) => item.id === saved.id ? { ...item, ...saved } : item));
+      }
+      setSyncStatus("saved");
+    } catch {
+      setSyncStatus("error");
+      toastMessage("Erreur de connexion au serveur");
+    }
+  };
+
+  const createBoard = (kind: BoardKind, title?: string) => {
     const board = makeTemplate(kind, title);
     commitBoard(board, true);
     setActiveId(board.id);
@@ -322,7 +278,7 @@ export function PlannerApp() {
   const deleteEvent = (id: string) => {
     if (!activeBoard) return;
     commitBoard({ ...activeBoard, events: activeBoard.events.filter((event) => event.id !== id), updatedAt: new Date().toISOString() });
-    toastMessage("Événement supprimé");
+    toastMessage("Créneau supprimé");
   };
 
   const updateBoard = (board: PlannerBoard) => commitBoard({ ...board, updatedAt: new Date().toISOString() });
@@ -340,16 +296,25 @@ export function PlannerApp() {
 
   const duplicateBoard = (board: PlannerBoard) => {
     const now = new Date().toISOString();
-    const duplicate: PlannerBoard = { ...board, id: crypto.randomUUID(), title: `${board.title} (copie)`, favorite: false, isDeleted: false, createdAt: now, updatedAt: now,
-      events: board.events.map((event) => ({ ...event, id: crypto.randomUUID() })) };
+    const duplicate: PlannerBoard = {
+      ...board,
+      id: crypto.randomUUID(),
+      title: `${board.title} (copie)`,
+      favorite: false,
+      isDeleted: false,
+      createdAt: now,
+      updatedAt: now,
+      events: board.events.map((event) => ({ ...event, id: crypto.randomUUID() })),
+    };
     commitBoard(duplicate, true);
     toastMessage("Une copie a été créée");
   };
 
   const removePermanently = async (board: PlannerBoard) => {
-    persistLocal(boards.filter((item) => item.id !== board.id));
-    markPending(board.id, false);
-    try { await fetch(`/api/boards/${board.id}`, { method: "DELETE" }); } catch { /* Local removal remains in place. */ }
+    setBoards((prev) => prev.filter((item) => item.id !== board.id));
+    try {
+      await fetch(`/api/boards/${board.id}`, { method: "DELETE" });
+    } catch {}
     toastMessage("Tableau supprimé définitivement");
   };
 
@@ -361,23 +326,29 @@ export function PlannerApp() {
     window.localStorage.setItem(THEME_KEY, next ? "dark" : "light");
   };
 
-  const saveUserName = (name: string) => {
+  const saveUserName = async (name: string) => {
     setUserName(name);
-    try { window.localStorage.setItem(USER_NAME_KEY, name); } catch {}
-    const supabase = getSupabaseBrowserClient();
-    if (supabase) {
-      void supabase.auth.getUser().then(({ data: { user } }: UserResponse) => {
-        if (user) return supabase.from("profiles").update({ display_name: name.slice(0, 80) }).eq("id", user.id);
-      }).catch(() => undefined);
-    }
+    try {
+      await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: name }),
+      });
+    } catch {}
   };
 
-  const saveWorkspaceName = (name: string) => {
+  const saveWorkspaceName = async (name: string) => {
     setWorkspaceName(name);
-    try { window.localStorage.setItem(WORKSPACE_NAME_KEY, name); } catch {}
+    try {
+      await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceName: name }),
+      });
+    } catch {}
   };
 
-  const userInitials = userName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "PL";
+  const userInitials = (userName || DEFAULT_USER_NAME).trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "MC";
 
   const filteredBoards = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("fr");
@@ -400,64 +371,63 @@ export function PlannerApp() {
         view={view}
         boards={boards}
         activeId={activeId}
-        open={menuOpen}
-        onNavigate={(target) => setView(target)}
-        onCreate={openTemplateDialog}
+        onNavigate={(nextView) => { setView(nextView); setActiveId(null); }}
         onOpenBoard={openBoard}
+        onCreate={openTemplateDialog}
+        open={menuOpen}
         onClose={() => setMenuOpen(false)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
         onLogout={handleLogout}
-        userName={userName}
-        workspaceName={workspaceName}
+        userName={userName || DEFAULT_USER_NAME}
+        workspaceName={workspaceName || "Mon espace"}
       />
-      <main className="main-panel">
+
+      <div className="main-viewport">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu-button" aria-label="Ouvrir le menu" onClick={() => setMenuOpen(true)}><Menu size={19} /></button>
-            <div className="breadcrumbs"><span>{workspaceName}</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
+            <button className="icon-button menu-toggle" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu">
+              <Menu size={18} />
+            </button>
+            <div className="topbar-breadcrumb">
+              <span>{workspaceName || "Mon espace"}</span>
+              <ChevronRight size={14} />
+              <strong>{pageTitle}</strong>
+            </div>
           </div>
-          <div className="topbar-actions">
-            <label className="search-box">
-              <Search size={16} />
-              <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher..." aria-label="Rechercher un tableau" />
-              <kbd><Command size={11} /> K</kbd>
-            </label>
-            <span className="topbar-divider" />
+
+          <div className="topbar-center">
+            <div className="topbar-search">
+              <Search size={15} />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un tableau, un cours…"
+                aria-label="Recherche rapide"
+              />
+              <kbd><Command size={11} />K</kbd>
+            </div>
+          </div>
+
+          <div className="topbar-right">
             <div className="brightness-wrapper" ref={brightnessRef}>
               <button
-                className={`icon-button brightness-toggle ${brightness !== 100 ? "has-adjustment" : ""}`}
+                className={`icon-button brightness-toggle ${brightness !== 100 ? "has-filter" : ""}`}
                 onClick={() => setBrightnessOpen(!brightnessOpen)}
-                aria-label={`Luminosité : ${brightness}%`}
-                title={`Luminosité : ${brightness}% (clique pour ajuster)`}
+                aria-label="Régler la luminosité"
+                title={`Luminosité : ${brightness}%`}
               >
                 <SunMedium size={18} />
+                {brightness !== 100 && <span className="brightness-dot" />}
               </button>
               {brightnessOpen && (
-                <div className="brightness-popover" role="dialog" aria-label="Contrôle de la luminosité">
+                <div className="brightness-popover" role="dialog" aria-label="Contrôle de luminosité">
                   <div className="brightness-popover-header">
-                    <div className="brightness-popover-title">
-                      <SunMedium size={15} />
-                      <strong>Luminosité</strong>
-                    </div>
-                    <button
-                      className="stepper-reset-btn"
-                      onClick={() => applyBrightness(100)}
-                      title="Réinitialiser à 100%"
-                    >
-                      {brightness}% (Reset)
-                    </button>
+                    <strong>Luminosité</strong>
+                    <span>{brightness}%</span>
                   </div>
-                  <div className="brightness-controls-row">
-                    <button
-                      className="stepper-btn-sm"
-                      onClick={() => applyBrightness(brightness - 5)}
-                      disabled={brightness <= 50}
-                      title="Diminuer la luminosité"
-                      aria-label="Diminuer la luminosité"
-                    >
-                      <Minus size={13} />
-                    </button>
+                  <div className="brightness-slider-row">
                     <input
                       type="range"
                       min="50"
@@ -465,18 +435,8 @@ export function PlannerApp() {
                       step="5"
                       value={brightness}
                       onChange={(e) => applyBrightness(Number(e.target.value))}
-                      className="brightness-range"
-                      aria-label="Ajuster la luminosité"
+                      aria-label="Curseur de luminosité"
                     />
-                    <button
-                      className="stepper-btn-sm"
-                      onClick={() => applyBrightness(brightness + 5)}
-                      disabled={brightness >= 150}
-                      title="Augmenter la luminosité"
-                      aria-label="Augmenter la luminosité"
-                    >
-                      <Plus size={13} />
-                    </button>
                   </div>
                   <div className="brightness-presets-bar">
                     {[75, 90, 100, 115, 130].map((val) => (
@@ -507,30 +467,11 @@ export function PlannerApp() {
               {notifOpen && (
                 <div className="notif-popover" role="dialog" aria-label="Notifications">
                   <div className="notif-popover-header">
-                    <strong>Notifications & Rappels</strong>
-                    <button className="notif-clear-btn" onClick={() => setHasUnreadNotifs(false)}>Tout lu</button>
+                    <strong>Notifications</strong>
                   </div>
                   <div className="notif-list">
-                    <div className="notif-item">
-                      <span className="notif-icon notif-icon-sparkle"><Sparkles size={14} /></span>
-                      <div>
-                        <strong>Bienvenue sur PlaniLux</strong>
-                        <small>Ton espace est prêt, rapide et optimisé.</small>
-                      </div>
-                    </div>
-                    <div className="notif-item">
-                      <span className="notif-icon notif-icon-cal"><CalendarDays size={14} /></span>
-                      <div>
-                        <strong>Rappel de sérénité</strong>
-                        <small>Prévois aussi des moments de pause dans ta semaine.</small>
-                      </div>
-                    </div>
-                    <div className="notif-item">
-                      <span className="notif-icon notif-icon-check"><Check size={14} /></span>
-                      <div>
-                        <strong>Sauvegarde locale active</strong>
-                        <small>Tes plannings sont conservés sur cet appareil.</small>
-                      </div>
+                    <div className="notif-item" style={{ textAlign: "center", padding: "16px", color: "var(--muted)" }}>
+                      <span>Aucune notification pour le moment.</span>
                     </div>
                   </div>
                 </div>
@@ -543,73 +484,124 @@ export function PlannerApp() {
           </div>
         </header>
 
-        {!isClient ? (
+        {!isClient || loading ? (
           <div className="app-loading">
             <div style={{ width: 64, height: 64, borderRadius: 18, overflow: "hidden", boxShadow: "0 8px 24px rgba(25, 20, 50, 0.18)" }}>
               <Image src="/logo.png" alt="PlaniLux" width={64} height={64} unoptimized style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </div>
-            <span className="loading-orbit" />
-            <p>Un instant, on prépare ton espace…</p>
+            <p>Chargement de vos plannings…</p>
           </div>
         ) : (
-          <div className="page-content" key={`${view}-${activeBoard?.id ?? "none"}`}>
+          <main className="content-scroll">
             {view === "overview" && (
               <Overview
                 boards={boards.filter((board) => !board.isDeleted)}
                 onCreate={openTemplateDialog}
                 onOpen={openBoard}
-                onNavigate={(target) => setView(target)}
+                onNavigate={(nextView) => setView(nextView)}
                 userName={userName}
               />
             )}
-            {(view === "boards" || view === "starred" || view === "trash" || view === "university" || view === "personal") && (
-              <BoardLibrary view={view} boards={filteredBoards} query={search} onCreate={openTemplateDialog} onOpen={openBoard} onDuplicate={duplicateBoard} onFavorite={toggleFavorite} onArchive={archiveBoard} onRestore={restoreBoard} onDelete={removePermanently} onClearSearch={() => setSearch("")} userName={userName} />
-            )}
-            {view === "editor" && activeBoard && (
-              <ScheduleEditor board={activeBoard} onBoardChange={updateBoard} onBack={() => setView("boards")} onOpenStudio={() => setView("studio")} onEventSave={updateEvent} onEventDelete={deleteEvent} onToast={toastMessage} />
-            )}
-            {view === "studio" && activeBoard && <ExportStudio board={activeBoard} onBack={() => setView("editor")} onToast={toastMessage} />}
-            {view === "studio" && !activeBoard && <section className="empty-state"><span className="empty-icon"><CalendarDays /></span><h2>Choisis un tableau à exporter</h2><p>Ouvre un planning pour retrouver ses options d’impression et de téléchargement.</p><button className="button-primary" onClick={() => setView("boards")}>Voir mes tableaux</button></section>}
-          </div>
-        )}
-      </main>
 
-      {templateOpen && <TemplateDialog onClose={() => setTemplateOpen(false)} onCreate={createBoard} />}
-      {settingsOpen && (
-        <SettingsDialog
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          fontScale={fontScale}
-          onChangeFontScale={applyFontScale}
-          brightness={brightness}
-          onChangeBrightness={applyBrightness}
-          dark={dark}
-          onToggleDark={toggleTheme}
-          userName={userName}
-          onChangeUserName={saveUserName}
-          workspaceName={workspaceName}
-          onChangeWorkspaceName={saveWorkspaceName}
-          boards={boards}
-          onImportBoards={(imported) => {
-            persistLocal(imported);
-            imported.forEach((board) => { void pushBoard(board, "POST"); });
-            toastMessage(`${imported.length} tableau(x) importé(s)`);
-          }}
-          onResetDefaults={() => {
-            const now = new Date().toISOString();
-            const trashed = boards.map((board) => board.isDeleted ? board : { ...board, isDeleted: true, updatedAt: now });
-            const fresh = makeDefaultBoards().map((board) => ({ ...board, id: crypto.randomUUID(), createdAt: now, updatedAt: now }));
-            persistLocal([...fresh, ...trashed]);
-            trashed.forEach((board, index) => { if (board !== boards[index]) void pushBoard(board, "PATCH"); });
-            fresh.forEach((board) => { void pushBoard(board, "POST"); });
-            toastMessage("Tableaux réinitialisés (les anciens sont dans la corbeille)");
-          }}
-          onLogout={handleLogout}
-          onToast={toastMessage}
+            {(view === "boards" || view === "starred" || view === "university" || view === "personal") && (
+              <BoardLibrary
+                view={view}
+                boards={filteredBoards}
+                query={search}
+                onCreate={openTemplateDialog}
+                onOpen={openBoard}
+                onFavorite={toggleFavorite}
+                onArchive={archiveBoard}
+                onRestore={restoreBoard}
+                onDelete={removePermanently}
+                onDuplicate={duplicateBoard}
+                onClearSearch={() => setSearch("")}
+                userName={userName}
+              />
+            )}
+
+            {view === "trash" && (
+              <BoardLibrary
+                view="trash"
+                boards={filteredBoards}
+                query={search}
+                onCreate={openTemplateDialog}
+                onOpen={openBoard}
+                onFavorite={toggleFavorite}
+                onArchive={restoreBoard}
+                onRestore={restoreBoard}
+                onDelete={removePermanently}
+                onDuplicate={duplicateBoard}
+                onClearSearch={() => setSearch("")}
+                userName={userName}
+              />
+            )}
+
+            {view === "editor" && activeBoard && (
+              <ScheduleEditor
+                board={activeBoard}
+                onBoardChange={updateBoard}
+                onBack={() => { setActiveId(null); setView("boards"); }}
+                onOpenStudio={() => setView("studio")}
+                onEventSave={updateEvent}
+                onEventDelete={deleteEvent}
+                onToast={toastMessage}
+                syncStatus={syncStatus}
+              />
+            )}
+
+            {view === "studio" && activeBoard && (
+              <ExportStudio
+                board={activeBoard}
+                onBack={() => setView("editor")}
+                onToast={toastMessage}
+              />
+            )}
+          </main>
+        )}
+      </div>
+
+      {templateOpen && (
+        <TemplateDialog
+          onClose={() => setTemplateOpen(false)}
+          onCreate={createBoard}
         />
       )}
-      {helpOpen && <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />}
-      {toast && <div className="toast-message" role="status"><span><Check size={15} /></span>{toast}<button onClick={() => setToast("")} aria-label="Fermer"><X size={14} /></button></div>}
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        fontScale={fontScale}
+        onChangeFontScale={applyFontScale}
+        brightness={brightness}
+        onChangeBrightness={applyBrightness}
+        dark={dark}
+        onToggleDark={toggleTheme}
+        userName={userName}
+        onChangeUserName={saveUserName}
+        workspaceName={workspaceName}
+        onChangeWorkspaceName={saveWorkspaceName}
+        boards={boards}
+        onImportBoards={(imported) => {
+          for (const item of imported) commitBoard(item, true);
+        }}
+        onClearData={handleClearData}
+        onDeleteAccount={handleDeleteAccount}
+        onLogout={handleLogout}
+        onToast={toastMessage}
+      />
+
+      <HelpDialog
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      />
+
+      {toast && (
+        <div className="toast" role="status" aria-live="polite">
+          <Sparkles size={14} />
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

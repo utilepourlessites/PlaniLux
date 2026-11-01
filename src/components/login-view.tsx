@@ -150,7 +150,7 @@ export function LoginView({ initialMode = "login", initialError }: { initialMode
               <label htmlFor="auth-name">Nom complet ou prénom</label>
               <div className="auth-input-wrap">
                 <UserRound size={16} className="auth-input-icon" />
-                <input id="auth-name" type="text" className="auth-input" placeholder="Ex : Camille Moreau" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} required />
+                <input id="auth-name" type="text" className="auth-input" placeholder="Votre prénom et nom" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
             </div>
           )}

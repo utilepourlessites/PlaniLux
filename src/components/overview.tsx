@@ -1,103 +1,102 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  ArrowRight, ArrowUpRight, CalendarCheck2, CalendarDays, Check, ChevronRight,
-  Clock3, Plus, Sparkles, Star, Zap,
+  ArrowRight, CalendarCheck2, CalendarDays, ChevronRight, Clock3, Plus, Sparkles, Zap, Check,
 } from "lucide-react";
-import { BOARD_KIND_LABELS, type PlannerBoard } from "@/lib/planner-types";
+import { BOARD_KIND_LABELS } from "@/lib/planner-types";
+import type { PlannerBoard } from "@/lib/planner-types";
 import type { PlannerView } from "@/components/planner-sidebar";
 
-const weekdays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-const shortTimes = ["08", "10", "12", "14", "16", "18"];
-
-function parseMinutes(time: string) {
-  const [h, m] = time.split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
+const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function MiniWeek({ board, onOpen }: { board: PlannerBoard; onOpen: () => void }) {
+  const eventsByDay = useMemo(() => {
+    const map = new Map<number, typeof board.events>();
+    for (const ev of board.events) {
+      const list = map.get(ev.day) ?? [];
+      list.push(ev);
+      map.set(ev.day, list);
+    }
+    return map;
+  }, [board.events]);
+
   return (
-    <div className="mini-week" role="button" tabIndex={0} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter") onOpen(); }}>
-      <div className="mini-time-rail">{shortTimes.map((time) => <span key={time}>{time}h</span>)}</div>
-      <div className="mini-week-columns">
-        {weekdays.map((day, index) => {
-          const dayItems = board.events.filter((item) => item.day === index).slice(0, 3);
-          return (
-            <div className="mini-day-column" key={day}>
-              <div className="mini-day-label">{day}</div>
-              <div className="mini-day-track">
-                {dayItems.map((item) => {
-                  const startMin = parseMinutes(item.start);
-                  const endMin = parseMinutes(item.end);
-                  const top = Math.max(2, Math.min(85, ((startMin - 480) / 600) * 100));
-                  const height = Math.max(12, Math.min(100 - top, ((endMin - startMin) / 600) * 100));
-                  return <span key={item.id} className="mini-event" style={{ top: `${top}%`, height: `${height}%`, backgroundColor: item.color }} title={`${item.title} (${item.start}–${item.end})`} />;
-                })}
-              </div>
+    <div className="mini-week" onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}>
+      {DAY_LABELS.map((label, dayIndex) => {
+        const events = (eventsByDay.get(dayIndex) ?? []).slice(0, 3);
+        return (
+          <div key={label} className="mini-day">
+            <span className="mini-day-name">{label}</span>
+            <div className="mini-slot-stack">
+              {events.length ? events.map((ev) => (
+                <span
+                  key={ev.id}
+                  className="mini-event-pill"
+                  style={{ background: ev.color }}
+                  title={`${ev.title} (${ev.start} - ${ev.end})`}
+                >
+                  {ev.title}
+                </span>
+              )) : <span className="mini-empty-dot" />}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function BoardTile({ board, onOpen }: { board: PlannerBoard; onOpen: () => void }) {
-  const days = ["L", "M", "M", "J", "V"];
+  const count = board.events.length;
   return (
     <button className="overview-board-tile" onClick={onOpen}>
-      <div className="tile-preview" style={{ "--tile-accent": board.color } as React.CSSProperties}>
-        <span className="tile-preview-mark"><CalendarDays size={15} /></span>
-        <div className="tile-preview-lines"><i /><i /><i /></div>
-        <div className="tile-preview-days">{days.map((day, index) => <span key={`${day}${index}`}>{day}</span>)}</div>
-        <span className="tile-event-dot tile-dot-a" /><span className="tile-event-dot tile-dot-b" /><span className="tile-event-dot tile-dot-c" />
-        {board.favorite && <span className="tile-star"><Star size={12} fill="currentColor" /></span>}
+      <span className="tile-color-bar" style={{ background: board.color }} />
+      <div className="tile-content">
+        <strong>{board.title}</strong>
+        <span>{BOARD_KIND_LABELS[board.kind]} · {count} créneau{count === 1 ? "" : "x"}</span>
       </div>
-      <div className="tile-copy"><span className="tile-title">{board.title}</span><span className="tile-subtitle">{BOARD_KIND_LABELS[board.kind]} <span>·</span> {board.events.length} créneau{board.events.length > 1 ? "x" : ""}</span></div>
-      <ArrowUpRight size={16} className="tile-arrow" />
+      <ChevronRight size={16} className="tile-chevron" />
     </button>
   );
 }
 
-export function Overview({ boards, onCreate, onOpen, onNavigate, userName }: {
+export function Overview({
+  boards,
+  onCreate,
+  onOpen,
+  onNavigate,
+  userName = "",
+}: {
   boards: PlannerBoard[];
   onCreate: () => void;
   onOpen: (id: string) => void;
   onNavigate: (view: PlannerView) => void;
   userName?: string;
 }) {
-  const [taskDone, setTaskDone] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return window.localStorage.getItem("planilux-task-done") === "true";
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  });
-
-  const toggleTask = () => {
-    const next = !taskDone;
-    setTaskDone(next);
-    try {
-      window.localStorage.setItem("planilux-task-done", String(next));
-    } catch {}
-  };
   const featured = boards.find((board) => board.favorite) ?? boards[0];
   const eventCount = boards.reduce((total, board) => total + board.events.length, 0);
   const date = new Date();
   const dateText = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(date);
-  const displayName = userName?.trim() ? userName.split(" ")[0] : "Camille";
+  const displayName = userName?.trim() ? userName.split(" ")[0] : "";
+
+  const todayDay = (date.getDay() + 6) % 7; // 0 = Lundi, 6 = Dimanche
+  const todayEvents = useMemo(() => {
+    return boards
+      .filter((b) => !b.isDeleted)
+      .flatMap((b) => b.events)
+      .filter((ev) => ev.day === todayDay)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .slice(0, 3);
+  }, [boards, todayDay]);
 
   return (
     <div className="overview-page">
       <div className="page-heading overview-heading">
         <div>
           <div className="eyebrow-date"><span className="live-dot" /> {dateText}</div>
-          <h1>Bonjour {displayName} <span className="wave-emoji">☀️</span></h1>
-          <p>On fait de la place pour une belle semaine ?</p>
+          <h1>{displayName ? `Bonjour ${displayName}` : "Bienvenue"} <span className="wave-emoji">☀️</span></h1>
+          <p>Organisez votre temps et vos projets en toute sérénité.</p>
         </div>
         <button className="button-primary desktop-create" onClick={onCreate}><Plus size={17} /> Nouveau tableau</button>
       </div>
@@ -105,31 +104,45 @@ export function Overview({ boards, onCreate, onOpen, onNavigate, userName }: {
       <section className="welcome-banner">
         <div className="welcome-copy">
           <span className="banner-overline"><Sparkles size={13} /> TON ESPACE, TON RYTHME</span>
-          <h2>Une semaine à ton image.<br /><em>Et un peu plus légère.</em></h2>
-          <p>Chaque chose à sa place, et du temps pour toi aussi.</p>
-          <button className="banner-link" onClick={() => featured && onOpen(featured.id)}>Voir mon planning <ArrowRight size={15} /></button>
+          <h2>Une organisation claire.<br /><em>Pensée pour vous.</em></h2>
+          <p>Chaque créneau à sa place, accessible en un coup d’œil.</p>
+          {featured ? (
+            <button className="banner-link" onClick={() => onOpen(featured.id)}>Voir mon planning <ArrowRight size={15} /></button>
+          ) : (
+            <button className="banner-link" onClick={onCreate}>Créer mon premier planning <ArrowRight size={15} /></button>
+          )}
         </div>
         <div className="banner-art" aria-hidden="true">
           <div className="banner-orbit orbit-one" /><div className="banner-orbit orbit-two" />
           <div className="banner-sun"><Sparkles size={29} strokeWidth={1.5} /></div>
-          <div className="floating-note note-top"><span className="note-check"><CalendarCheck2 size={14} /></span><span><strong>Tout est prêt</strong><small>Tu gères 🌷</small></span></div>
-          <div className="floating-note note-bottom"><span className="note-clock"><Clock3 size={14} /></span><span><strong>Un peu de temps</strong><small>Rien que pour toi</small></span></div>
-          <span className="banner-sparkle sparkle-a">✳</span><span className="banner-sparkle sparkle-b">✦</span><span className="banner-sparkle sparkle-c">·</span>
+          <span className="banner-sparkle sparkle-a">✶</span><span className="banner-sparkle sparkle-b">✦</span><span className="banner-sparkle sparkle-c">·</span>
         </div>
         <div className="banner-grain" />
       </section>
 
       <div className="overview-stats">
-        <article className="stat-card"><span className="stat-icon stat-lilac"><CalendarDays size={17} /></span><div><span>MES TABLEAUX</span><strong>{boards.length.toString().padStart(2, "0")}</strong></div><small className="stat-caption">un espace pour chaque projet</small></article>
-        <article className="stat-card"><span className="stat-icon stat-mint"><CalendarCheck2 size={17} /></span><div><span>CRÉNEAUX PLANIFIÉS</span><strong>{eventCount.toString().padStart(2, "0")}</strong></div><small className="stat-caption">à ton rythme, sans pression</small></article>
-        <article className="stat-card stat-quote-card"><span className="stat-icon stat-peach"><Zap size={17} /></span><div><span>PETIT RAPPEL</span><strong>Tu avances.</strong></div><small className="stat-caption">et c’est déjà beaucoup ✨</small></article>
+        <article className="stat-card">
+          <span className="stat-icon stat-lilac"><CalendarDays size={17} /></span>
+          <div><span>MES TABLEAUX</span><strong>{boards.length.toString().padStart(2, "0")}</strong></div>
+          <small className="stat-caption">un espace pour chaque projet</small>
+        </article>
+        <article className="stat-card">
+          <span className="stat-icon stat-mint"><CalendarCheck2 size={17} /></span>
+          <div><span>CRÉNEAUX PLANIFIÉS</span><strong>{eventCount.toString().padStart(2, "0")}</strong></div>
+          <small className="stat-caption">à votre rythme, sans surcharge</small>
+        </article>
+        <article className="stat-card stat-quote-card">
+          <span className="stat-icon stat-peach"><Zap size={17} /></span>
+          <div><span>VOTRE ESPACE</span><strong>PlaniLux</strong></div>
+          <small className="stat-caption">prêt pour vos plannings</small>
+        </article>
       </div>
 
       <div className="overview-columns">
         <section className="overview-section week-overview-card">
           <div className="section-heading">
-            <div><div className="section-eyebrow">TON COUP D’ŒIL</div><h2>Ta semaine, en un regard</h2></div>
-            <button className="text-link" onClick={() => featured && onOpen(featured.id)}>Ouvrir le planning <ChevronRight size={15} /></button>
+            <div><div className="section-eyebrow">APERÇU</div><h2>La semaine en cours</h2></div>
+            {featured && <button className="text-link" onClick={() => onOpen(featured.id)}>Ouvrir le planning <ChevronRight size={15} /></button>}
           </div>
           {featured ? (
             <>
@@ -140,34 +153,63 @@ export function Overview({ boards, onCreate, onOpen, onNavigate, userName }: {
               </button>
               <MiniWeek board={featured} onOpen={() => onOpen(featured.id)} />
             </>
-          ) : <button className="week-empty" onClick={onCreate}><Plus size={16} /> Créer ton premier planning</button>}
-          <div className="week-footer"><span><span className="legend-dot legend-school" /> Cours</span><span><span className="legend-dot legend-personal" /> Temps pour soi</span><button onClick={() => onNavigate("boards")}>Tout voir <ArrowRight size={14} /></button></div>
+          ) : (
+            <button className="week-empty" onClick={onCreate}><Plus size={16} /> Créer votre premier planning</button>
+          )}
+          <div className="week-footer">
+            <button onClick={() => onNavigate("boards")}>Tous mes tableaux <ArrowRight size={14} /></button>
+          </div>
         </section>
 
         <section className="overview-section today-card">
-          <div className="section-heading today-heading"><div><div className="section-eyebrow">EN DOUCEUR</div><h2>À ne pas oublier</h2></div><span className="today-sparkle"><Sparkles size={17} /></span></div>
-          <div className="today-reminder"><span className="reminder-icon"><Clock3 size={16} /></span><div><strong>Respirer, c’est productif.</strong><p>Une pause fait aussi partie du programme.</p></div></div>
-          <button
-            className={`today-task today-task-btn ${taskDone ? "is-task-done" : ""}`}
-            onClick={toggleTask}
-            aria-label="Cocher l’objectif du jour"
-          >
-            <span className="task-check">{taskDone && <Check size={11} />}</span>
-            <div><strong>Garder un moment pour soi</strong><small>{taskDone ? "Fait pour aujourd’hui ! ✨" : "La priorité du jour"}</small></div>
-            <span className="task-tag">{taskDone ? "ACCOMPLI" : "ESSENTIEL"}</span>
-          </button>
-          <div className="today-footer"><span>Ton agenda t’appartient.</span><span className="footer-heart">♡</span></div>
+          <div className="section-heading today-heading">
+            <div><div className="section-eyebrow">AUJOURD’HUI</div><h2>Programme du jour</h2></div>
+            <span className="today-sparkle"><Clock3 size={17} /></span>
+          </div>
+          {todayEvents.length > 0 ? (
+            <div className="today-schedule-list">
+              {todayEvents.map((ev) => (
+                <div key={ev.id} className="today-task" style={{ borderLeft: `3px solid ${ev.color}` }}>
+                  <span className="task-check"><Check size={11} /></span>
+                  <div>
+                    <strong>{ev.title}</strong>
+                    <small>{ev.start} - {ev.end} {ev.location ? `· ${ev.location}` : ""}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="today-reminder">
+              <span className="reminder-icon"><Clock3 size={16} /></span>
+              <div>
+                <strong>Rien de prévu aujourd’hui.</strong>
+                <p>Aucun créneau planifié pour ce jour.</p>
+              </div>
+            </div>
+          )}
+          <div className="today-footer"><span>Planning personnel et synchronisé.</span></div>
         </section>
       </div>
 
       <section className="overview-section boards-overview-section">
         <div className="section-heading boards-heading">
-          <div><div className="section-eyebrow">TON PETIT UNIVERS</div><h2>Reprendre là où tu en étais</h2></div>
+          <div><div className="section-eyebrow">VOS PROJETS</div><h2>Accéder rapidement à vos plannings</h2></div>
           <button className="text-link" onClick={() => onNavigate("boards")}>Tous mes tableaux <ChevronRight size={15} /></button>
         </div>
-        {boards.length ? <div className="overview-board-grid">{boards.slice(0, 3).map((board) => <BoardTile key={board.id} board={board} onOpen={() => onOpen(board.id)} />)}</div> : <button className="create-first-board" onClick={onCreate}><span><Plus size={17} /></span><strong>Créer ton premier tableau</strong><small>Ça ne prend qu’un instant</small></button>}
+        {boards.length ? (
+          <div className="overview-board-grid">
+            {boards.slice(0, 3).map((board) => (
+              <BoardTile key={board.id} board={board} onOpen={() => onOpen(board.id)} />
+            ))}
+          </div>
+        ) : (
+          <button className="create-first-board" onClick={onCreate}>
+            <span><Plus size={17} /></span>
+            <strong>Créer votre premier tableau</strong>
+            <small>Votre espace de planning est prêt</small>
+          </button>
+        )}
       </section>
-      <div className="overview-note"><span className="note-star">✳</span> Une bonne organisation n’a pas besoin d’être parfaite. Elle a juste besoin de te ressembler.</div>
     </div>
   );
 }

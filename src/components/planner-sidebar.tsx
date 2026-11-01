@@ -38,15 +38,15 @@ export function PlannerSidebar({
   onOpenSettings,
   onOpenHelp,
   onLogout,
-  userName = "Camille Moreau",
+  userName = "Mon compte",
   workspaceName = "Mon espace",
 }: Props) {
   const [showTip, setShowTip] = useState(true);
   const activeBoards = boards.filter((board) => !board.isDeleted);
   const trashCount = boards.filter((board) => board.isDeleted).length;
   const starredCount = activeBoards.filter((board) => board.favorite).length;
-  const userInitials = userName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "CM";
-  const userFirst = userName.trim().split(" ")[0] || "Camille";
+  const userInitials = userName.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "MC";
+  const userFirst = userName.trim().split(" ")[0] || "Compte";
 
   const navigate = (target: PlannerView) => {
     onNavigate(target);
