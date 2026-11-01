@@ -41,8 +41,9 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
             {options.showDates && <span>{monthLabel.toUpperCase()} · VUE D’ENSEMBLE</span>}
           </div>
           {options.showLogo && (
-            <span className="export-logo">
-              <Sparkles size={12} /> PlaniLux
+            <span className="export-logo" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-192.png" alt="" width={14} height={14} style={{ borderRadius: 3, objectFit: "cover" }} /> PlaniLux
             </span>
           )}
         </div>
@@ -113,8 +114,9 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
           {options.showDates && <span>{model.subtitle.toUpperCase()}</span>}
         </div>
         {options.showLogo && (
-          <span className="export-logo">
-            <Sparkles size={12} /> PlaniLux
+          <span className="export-logo" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon-192.png" alt="" width={14} height={14} style={{ borderRadius: 3, objectFit: "cover" }} /> PlaniLux
           </span>
         )}
       </div>

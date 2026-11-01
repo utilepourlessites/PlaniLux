@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Image from "next/image";
 import {
   Bell, CalendarDays, Check, ChevronDown, ChevronRight, Command, LogOut,
   Menu, Minus, Moon, Plus, Search, Sparkles, Sun, SunMedium, X,
@@ -465,7 +466,15 @@ export function PlannerApp() {
           </div>
         </header>
 
-        {!isClient ? <div className="app-loading"><span className="loading-orbit" /><p>Un instant, on prépare ton espace…</p></div> : (
+        {!isClient ? (
+          <div className="app-loading">
+            <div style={{ width: 64, height: 64, borderRadius: 18, overflow: "hidden", boxShadow: "0 8px 24px rgba(25, 20, 50, 0.18)" }}>
+              <Image src="/logo.png" alt="PlaniLux" width={64} height={64} unoptimized style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </div>
+            <span className="loading-orbit" />
+            <p>Un instant, on prépare ton espace…</p>
+          </div>
+        ) : (
           <div className="page-content" key={`${view}-${activeBoard?.id ?? "none"}`}>
             {view === "overview" && (
               <Overview

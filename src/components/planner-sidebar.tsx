@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   BookOpen, CalendarDays, ChevronDown, CircleHelp, FolderOpen, Home,
   LayoutGrid, LogOut, Plus, Settings2, Sparkles, Star, Trash2, X,
@@ -58,7 +59,9 @@ export function PlannerSidebar({
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <button onClick={() => navigate("overview")} className="brand-row-button" title="Retour à la vue d’ensemble">
-            <div className="brand-mark"><Sparkles size={20} strokeWidth={2.2} /></div>
+            <div className="brand-mark">
+              <Image src="/icon-192.png" alt="Logo PlaniLux" width={34} height={34} unoptimized style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </div>
             <span className="brand-name">Plani<span>Lux</span></span>
           </button>
           <button className="icon-button sidebar-close" aria-label="Fermer le menu" onClick={onClose}><X size={18} /></button>

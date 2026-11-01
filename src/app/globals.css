@@ -61,7 +61,8 @@ html[data-theme="dark"] {
 .app-frame { display: flex; min-height: 100vh; background: var(--canvas); color: var(--ink); }
 .sidebar { width: var(--sidebar-width); height: 100vh; position: sticky; top: 0; z-index: 30; flex: 0 0 var(--sidebar-width); display: flex; flex-direction: column; padding: 22px 15px 13px; background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; }
 .brand-row { display: flex; align-items: center; gap: 10px; padding: 0 9px 21px; }
-.brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; color: #fff; background: linear-gradient(145deg, #a89adc, #8170c1); box-shadow: 0 4px 10px rgba(129, 112, 193, .27); }
+.brand-mark { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(20, 18, 35, .2); flex-shrink: 0; }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .brand-name { letter-spacing: -.9px; font-size: 22px; font-weight: 700; color: var(--ink); }
 .brand-name span { color: var(--violet); font-weight: 500; }
 .icon-button, .tiny-icon-button, .round-control, .zoom-button { display: inline-grid; place-items: center; color: var(--muted); border: 0; background: transparent; cursor: pointer; transition: background .18s, color .18s, transform .18s; }

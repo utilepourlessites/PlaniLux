@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Lock, Mail, Shield, Sparkles, UserRound,
@@ -57,13 +58,13 @@ export function LoginView() {
     <div className="auth-page-root">
       <div className="auth-card">
         <div className="auth-header">
-          <div className="landing-logo" style={{ justifyContent: "center", marginBottom: 14 }}>
-            <div className="landing-logo-badge">
-              <Sparkles size={20} strokeWidth={2.2} />
+          <div className="landing-logo" style={{ justifyContent: "center", marginBottom: 18 }}>
+            <div className="landing-logo-badge" style={{ width: 64, height: 64, borderRadius: 18, overflow: "hidden", boxShadow: "0 8px 24px rgba(25, 20, 50, 0.22)" }}>
+              <Image src="/logo.png" alt="Logo PlaniLux" width={64} height={64} unoptimized style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </div>
             <div className="landing-logo-text">
-              <span className="landing-logo-title">Plani<span>Lux</span></span>
-              <span className="landing-logo-sub">Studio de planning</span>
+              <span className="landing-logo-title" style={{ fontSize: 24 }}>Plani<span>Lux</span></span>
+              <span className="landing-logo-sub" style={{ fontSize: 12 }}>Studio de planning</span>
             </div>
           </div>
           <h1>{mode === "login" ? "Connexion" : "Créer un compte"}</h1>
