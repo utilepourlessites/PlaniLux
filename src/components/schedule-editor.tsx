@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChevronLeft,
-  ChevronRight, Clock3, Download, Grid3X3, LayoutGrid, Plus, Printer, SlidersHorizontal,
+  ChevronRight, Clock3, Grid3X3, LayoutGrid, Plus, Printer, SlidersHorizontal,
   Sparkles, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { EventDialog } from "@/components/event-dialog";
 import { MonthlyPlanner } from "@/components/monthly-planner";
+import { layoutDayEvents, minutesFromTime } from "@/lib/sheet-layout";
 import type { PlannerBoard, ScheduleEvent } from "@/lib/planner-types";
 
 const dayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -15,68 +16,12 @@ const hourStart = 8;
 const hourEnd = 20;
 const baseHourHeight: Record<string, number> = { Normal: 62, Compact: 46, "Ultra-compact": 34 };
 
-function minutesFromTime(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  return (hours || 0) * 60 + (minutes || 0);
-}
-
 function formatTime(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(date);
 }
 
 function getTodayIndex() {
   return (new Date().getDay() + 6) % 7;
-}
-
-function layoutDayEvents(events: ScheduleEvent[]) {
-  const sorted = [...events].sort((a, b) => minutesFromTime(a.start) - minutesFromTime(b.start));
-  const layout = new Map<string, { col: number; totalCols: number }>();
-
-  const clusters: ScheduleEvent[][] = [];
-  let currentCluster: ScheduleEvent[] = [];
-  let clusterEnd = -1;
-
-  for (const event of sorted) {
-    const start = minutesFromTime(event.start);
-    const end = minutesFromTime(event.end);
-    if (currentCluster.length === 0 || start < clusterEnd) {
-      currentCluster.push(event);
-      clusterEnd = Math.max(clusterEnd, end);
-    } else {
-      clusters.push(currentCluster);
-      currentCluster = [event];
-      clusterEnd = end;
-    }
-  }
-  if (currentCluster.length > 0) clusters.push(currentCluster);
-
-  for (const cluster of clusters) {
-    const colEnds: number[] = [];
-    const placements: { id: string; col: number }[] = [];
-    for (const event of cluster) {
-      const start = minutesFromTime(event.start);
-      const end = minutesFromTime(event.end);
-      let placed = -1;
-      for (let i = 0; i < colEnds.length; i++) {
-        if (colEnds[i] <= start) {
-          placed = i;
-          colEnds[i] = end;
-          break;
-        }
-      }
-      if (placed === -1) {
-        placed = colEnds.length;
-        colEnds.push(end);
-      }
-      placements.push({ id: event.id, col: placed });
-    }
-    const totalCols = Math.max(1, colEnds.length);
-    for (const p of placements) {
-      layout.set(p.id, { col: p.col, totalCols });
-    }
-  }
-
-  return layout;
 }
 
 function createWeek(offset: number) {
@@ -154,8 +99,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
           </div>
           <div className="editor-heading-actions">
             <span className="autosave-status"><i /> Enregistré</span>
-            <button className="button-secondary export-quick" onClick={() => window.print()} title="Imprimer directement ce planning"><Printer size={15} /> Imprimer</button>
-            <button className="button-secondary export-quick" onClick={onOpenStudio}><Download size={15} /> Exporter</button>
+            <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export"><Printer size={15} /> Imprimer & Exporter</button>
           </div>
         </div>
         <MonthlyPlanner board={board} onEventSave={onEventSave} onEventDelete={onEventDelete} onToast={onToast} />
@@ -173,8 +117,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
         </div>
         <div className="editor-heading-actions">
           <span className="autosave-status"><i /> Enregistré</span>
-          <button className="button-secondary export-quick" onClick={() => window.print()} title="Imprimer directement ce planning"><Printer size={15} /> Imprimer</button>
-          <button className="button-secondary export-quick" onClick={onOpenStudio}><Download size={15} /> Exporter</button>
+          <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export"><Printer size={15} /> Imprimer & Exporter</button>
           <button className="button-primary editor-add-button" onClick={startNew}><Plus size={16} /> Ajouter un créneau</button>
         </div>
       </div>
