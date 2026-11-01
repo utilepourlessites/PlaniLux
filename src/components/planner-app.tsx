@@ -51,9 +51,12 @@ export function PlannerApp() {
   const [search, setSearch] = useState("");
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
-      return window.localStorage.getItem(THEME_KEY) === "dark";
+      const saved = window.localStorage.getItem(THEME_KEY);
+      if (saved !== null) {
+        return saved === "dark";
+      }
     }
-    return false;
+    return true;
   });
   const [fontScale, setFontScale] = useState(() => {
     if (typeof window !== "undefined") {
@@ -126,8 +129,9 @@ export function PlannerApp() {
   }, [toastMessage]);
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem(THEME_KEY) === "dark";
-    document.documentElement.dataset.theme = savedTheme ? "dark" : "light";
+    const saved = window.localStorage.getItem(THEME_KEY);
+    const isDark = saved !== null ? saved === "dark" : true;
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
 
     const savedFontScale = Number(window.localStorage.getItem(FONT_SCALE_KEY));
     const fontScaleToApply = savedFontScale && !isNaN(savedFontScale) ? savedFontScale : 100;

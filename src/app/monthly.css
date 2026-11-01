@@ -1,4 +1,4 @@
-.month-planner-card { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: 0 3px 12px rgba(40,35,55,.025); }
+.month-planner-card { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); backdrop-filter: var(--glass-blur, blur(20px)); -webkit-backdrop-filter: var(--glass-blur, blur(20px)); box-shadow: var(--shadow-card); }
 .month-planner-toolbar { min-height: 72px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .month-heading { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
 .month-heading-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; color: #7869a8; border-radius: 9px; background: #f0edf8; }
