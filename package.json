@@ -7,7 +7,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:all": "node scripts/check-status.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
