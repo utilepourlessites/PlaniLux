@@ -383,22 +383,22 @@ export function PlannerApp() {
         workspaceName={workspaceName || "Mon espace"}
       />
 
-      <div className="main-viewport">
+      <main className="main-panel">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button menu-toggle" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu">
-              <Menu size={18} />
+            <button className="icon-button mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu">
+              <Menu size={19} />
             </button>
-            <div className="topbar-breadcrumb">
+            <div className="breadcrumbs">
               <span>{workspaceName || "Mon espace"}</span>
               <ChevronRight size={14} />
               <strong>{pageTitle}</strong>
             </div>
           </div>
 
-          <div className="topbar-center">
-            <div className="topbar-search">
-              <Search size={15} />
+          <div className="topbar-actions">
+            <label className="search-box">
+              <Search size={16} />
               <input
                 ref={searchRef}
                 value={search}
@@ -407,10 +407,10 @@ export function PlannerApp() {
                 aria-label="Recherche rapide"
               />
               <kbd><Command size={11} />K</kbd>
-            </div>
-          </div>
+            </label>
 
-          <div className="topbar-right">
+            <span className="topbar-divider" />
+
             <div className="brightness-wrapper" ref={brightnessRef}>
               <button
                 className={`icon-button brightness-toggle ${brightness !== 100 ? "has-filter" : ""}`}
@@ -453,7 +453,9 @@ export function PlannerApp() {
                 </div>
               )}
             </div>
+
             <button className="icon-button theme-toggle" onClick={toggleTheme} aria-label={dark ? "Passer au thème clair" : "Passer au thème sombre"}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+
             <div className="notif-wrapper" ref={notifRef}>
               <button
                 className="icon-button notification-button"
@@ -477,6 +479,9 @@ export function PlannerApp() {
                 </div>
               )}
             </div>
+
+            <span className="topbar-divider" />
+
             <button className="topbar-user topbar-user-btn" onClick={() => setSettingsOpen(true)} title="Paramètres de profil" aria-label="Paramètres de profil">
               <span>{userInitials}</span>
               <ChevronDown size={14} />
@@ -492,7 +497,7 @@ export function PlannerApp() {
             <p>Chargement de vos plannings…</p>
           </div>
         ) : (
-          <main className="content-scroll">
+          <div className="page-content">
             {view === "overview" && (
               <Overview
                 boards={boards.filter((board) => !board.isDeleted)}
@@ -557,9 +562,9 @@ export function PlannerApp() {
                 onToast={toastMessage}
               />
             )}
-          </main>
+          </div>
         )}
-      </div>
+      </main>
 
       {templateOpen && (
         <TemplateDialog
