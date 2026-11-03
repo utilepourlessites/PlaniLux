@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Image from "next/image";
 import {
   Bell, CalendarDays, Check, ChevronDown, ChevronRight, Command, LogOut,
-  Menu, Minus, Moon, Plus, Search, Sparkles, Sun, SunMedium, X,
+  Menu, Minus, Moon, Plus, Search, Sparkles, Sun, SunMedium, WifiOff, X,
 } from "lucide-react";
 import { PlannerSidebar, type PlannerView } from "@/components/planner-sidebar";
 import { Overview } from "@/components/overview";
@@ -22,7 +22,33 @@ import type { BoardKind, PlannerBoard, ScheduleEvent } from "@/lib/planner-types
 const THEME_KEY = "planilux-theme";
 const FONT_SCALE_KEY = "planilux-font-scale";
 const BRIGHTNESS_KEY = "planilux-brightness";
+const OFFLINE_QUEUE_KEY = "planilux-offline-queue";
+const BOARDS_BACKUP_KEY = "planilux-boards-backup";
 const DEFAULT_USER_NAME = "Mon compte";
+
+type OfflineMutation = {
+  id: string;
+  board: PlannerBoard;
+  isNew: boolean;
+  queuedAt: string;
+};
+
+function getOfflineQueue(): OfflineMutation[] {
+  try {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(OFFLINE_QUEUE_KEY) : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOfflineQueue(queue: OfflineMutation[]) {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    }
+  } catch {}
+}
 
 const emptySubscribe = () => () => {};
 
@@ -98,11 +124,22 @@ export function PlannerApp() {
   const handleLogout = useCallback(async () => {
     toastMessage("Déconnexion en cours…");
     try {
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: "CLEAR_CACHE" });
+      }
+    } catch {}
+    try {
       const supabase = getSupabaseBrowserClient();
       if (supabase) await supabase.auth.signOut();
     } catch {}
     try {
+      const theme = window.localStorage.getItem(THEME_KEY);
+      const font = window.localStorage.getItem(FONT_SCALE_KEY);
+      const bright = window.localStorage.getItem(BRIGHTNESS_KEY);
       window.localStorage.clear();
+      if (theme) window.localStorage.setItem(THEME_KEY, theme);
+      if (font) window.localStorage.setItem(FONT_SCALE_KEY, font);
+      if (bright) window.localStorage.setItem(BRIGHTNESS_KEY, bright);
     } catch {}
     window.location.href = "/login";
   }, [toastMessage]);
@@ -114,96 +151,93 @@ export function PlannerApp() {
       setBoards([]);
       setActiveId(null);
       setView("overview");
+      try {
+        window.localStorage.removeItem(BOARDS_BACKUP_KEY);
+        window.localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      } catch {}
       toastMessage("Tous les tableaux ont été supprimés");
     } catch {
-      toastMessage("Échec de la suppression des tableaux");
+      toastMessage("Échec de la suppression");
     }
   }, [toastMessage]);
 
   const handleDeleteAccount = useCallback(async () => {
     try {
       const res = await fetch("/api/account", { method: "DELETE" });
-      if (!res.ok) throw new Error("Erreur de suppression de compte");
-      handleLogout();
+      if (!res.ok) throw new Error("Impossible de supprimer le compte");
+      try {
+        if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "CLEAR_CACHE" });
+        }
+      } catch {}
+      try {
+        window.localStorage.clear();
+      } catch {}
+      window.location.href = "/login";
     } catch {
-      toastMessage("Échec de la suppression du compte");
+      toastMessage("Impossible de supprimer le compte.");
     }
-  }, [handleLogout, toastMessage]);
+  }, [toastMessage]);
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(THEME_KEY);
-    const isDark = saved !== null ? saved === "dark" : true;
-    document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  // Rejouer la file d'attente hors-ligne quand la connexion revient
+  const syncOfflineQueue = useCallback(async () => {
+    if (typeof window === "undefined" || !navigator.onLine) return;
+    const queue = getOfflineQueue();
+    if (!queue.length) return;
 
-    const savedFontScale = Number(window.localStorage.getItem(FONT_SCALE_KEY));
-    const fontScaleToApply = savedFontScale && !isNaN(savedFontScale) ? savedFontScale : 100;
-    document.documentElement.dataset.fontScale = String(fontScaleToApply);
-    document.documentElement.style.setProperty("--font-scale", String(fontScaleToApply / 100));
-    document.body.style.zoom = String(fontScaleToApply / 100);
-
-    const savedBrightness = Number(window.localStorage.getItem(BRIGHTNESS_KEY));
-    if (savedBrightness && !isNaN(savedBrightness) && savedBrightness >= 50 && savedBrightness <= 150) {
-      document.documentElement.style.setProperty("--app-brightness", `${savedBrightness}%`);
+    setSyncStatus("saving");
+    const remaining: OfflineMutation[] = [];
+    for (const item of queue) {
+      try {
+        const method = item.isNew ? "POST" : "PATCH";
+        const url = item.isNew ? "/api/boards" : `/api/boards/${item.board.id}`;
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.board),
+        });
+        if (!res.ok && res.status !== 404) {
+          remaining.push(item);
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+    saveOfflineQueue(remaining);
+    if (remaining.length === 0) {
+      setSyncStatus("saved");
+      toastMessage("Connexion rétablie — Synchronisation terminée !");
     } else {
-      document.documentElement.style.setProperty("--app-brightness", "100%");
+      setSyncStatus("error");
     }
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
-
-    let cancelled = false;
-
-    // Charger le profil utilisateur
-    fetch("/api/profile", { cache: "no-store" })
-      .then(async (res) => {
-        if (res.status === 401) { window.location.href = "/login"; return; }
-        if (!res.ok) return;
-        const profile = await res.json();
-        if (cancelled) return;
-        if (profile.displayName) setUserName(profile.displayName);
-        if (profile.workspaceName) setWorkspaceName(profile.workspaceName);
-      })
-      .catch(() => undefined);
-
-    // Charger les tableaux depuis l'API
-    fetch("/api/boards", { cache: "no-store" })
-      .then(async (response) => {
-        if (response.status === 401) { window.location.href = "/login"; return; }
-        if (!response.ok) throw new Error("Erreur de chargement");
-        const remote = await response.json() as PlannerBoard[];
-        if (cancelled || !Array.isArray(remote)) return;
-        setBoards(remote);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, []);
+  }, [toastMessage]);
 
   useEffect(() => {
-    if (!notifOpen) return;
-    const clickOutsideNotif = (event: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+    window.addEventListener("online", syncOfflineQueue);
+    return () => window.removeEventListener("online", syncOfflineQueue);
+  }, [syncOfflineQueue]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.documentElement.dataset.fontScale = String(fontScale);
+    document.documentElement.style.setProperty("--font-scale", String(fontScale / 100));
+    document.body.style.zoom = String(fontScale / 100);
+    document.documentElement.style.setProperty("--app-brightness", `${brightness}%`);
+  }, [dark, fontScale, brightness]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (notifRef.current && !notifRef.current.contains(target)) {
         setNotifOpen(false);
       }
-    };
-    document.addEventListener("mousedown", clickOutsideNotif);
-    return () => document.removeEventListener("mousedown", clickOutsideNotif);
-  }, [notifOpen]);
-
-  useEffect(() => {
-    if (!brightnessOpen) return;
-    const clickOutsideBrightness = (event: MouseEvent) => {
-      if (brightnessRef.current && !brightnessRef.current.contains(event.target as Node)) {
+      if (brightnessRef.current && !brightnessRef.current.contains(target)) {
         setBrightnessOpen(false);
       }
     };
-    document.addEventListener("mousedown", clickOutsideBrightness);
-    return () => document.removeEventListener("mousedown", clickOutsideBrightness);
-  }, [brightnessOpen]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -216,12 +250,32 @@ export function PlannerApp() {
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  const commitBoard = async (board: PlannerBoard, isNew = false) => {
-    const exists = boards.some((item) => item.id === board.id);
-    const next = exists ? boards.map((item) => item.id === board.id ? board : item) : [board, ...boards];
-    setBoards(next);
-    setSyncStatus("saving");
+  // Sauvegarde résiliente avec file d'attente hors-ligne
+  const commitBoard = useCallback(async (board: PlannerBoard, isNew = false) => {
+    setBoards((prevBoards) => {
+      const exists = prevBoards.some((item) => item.id === board.id);
+      const next = exists ? prevBoards.map((item) => (item.id === board.id ? board : item)) : [board, ...prevBoards];
+      try {
+        window.localStorage.setItem(BOARDS_BACKUP_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
 
+    // Gestion hors-ligne préalable
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const queue = getOfflineQueue();
+      const updatedQueue = [
+        ...queue.filter((q) => q.board.id !== board.id),
+        { id: board.id, board, isNew, queuedAt: new Date().toISOString() },
+      ];
+      saveOfflineQueue(updatedQueue);
+      setSyncStatus("error");
+      toastMessage("Hors-ligne — Synchronisation en attente");
+      return;
+    }
+
+    setSyncStatus("saving");
+    const exists = boards.some((item) => item.id === board.id);
     const method = isNew || !exists ? "POST" : "PATCH";
     try {
       const response = await fetch(method === "POST" ? "/api/boards" : `/api/boards/${board.id}`, {
@@ -236,21 +290,33 @@ export function PlannerApp() {
       }
 
       if (!response.ok) {
+        const queue = getOfflineQueue();
+        const updatedQueue = [
+          ...queue.filter((q) => q.board.id !== board.id),
+          { id: board.id, board, isNew, queuedAt: new Date().toISOString() },
+        ];
+        saveOfflineQueue(updatedQueue);
         setSyncStatus("error");
-        toastMessage("Échec de la synchronisation sur le serveur");
+        toastMessage("Hors-ligne — Synchronisation en attente");
         return;
       }
 
-      const saved = await response.json() as PlannerBoard;
-      if (saved.id) {
-        setBoards((prev) => prev.map((item) => item.id === saved.id ? { ...item, ...saved } : item));
+      const saved = (await response.json()) as PlannerBoard;
+      if (saved && saved.id) {
+        setBoards((current) => current.map((item) => (item.id === saved.id ? saved : item)));
       }
       setSyncStatus("saved");
     } catch {
+      const queue = getOfflineQueue();
+      const updatedQueue = [
+        ...queue.filter((q) => q.board.id !== board.id),
+        { id: board.id, board, isNew, queuedAt: new Date().toISOString() },
+      ];
+      saveOfflineQueue(updatedQueue);
       setSyncStatus("error");
-      toastMessage("Erreur de connexion au serveur");
+      toastMessage("Hors-ligne — Synchronisation en attente");
     }
-  };
+  }, [boards, toastMessage]);
 
   const createBoard = (kind: BoardKind, title?: string) => {
     const board = makeTemplate(kind, title);
@@ -348,33 +414,86 @@ export function PlannerApp() {
     } catch {}
   };
 
-  const userInitials = (userName || DEFAULT_USER_NAME).trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "MC";
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadData() {
+      try {
+        const [boardsRes, profileRes] = await Promise.all([
+          fetch("/api/boards"),
+          fetch("/api/profile"),
+        ]);
+
+        if (boardsRes.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+
+        if (boardsRes.ok) {
+          const list = (await boardsRes.json()) as PlannerBoard[];
+          if (!isCancelled) {
+            setBoards(list);
+            try {
+              window.localStorage.setItem(BOARDS_BACKUP_KEY, JSON.stringify(list));
+            } catch {}
+          }
+        } else {
+          // Secours local hors-ligne
+          const backup = window.localStorage.getItem(BOARDS_BACKUP_KEY);
+          if (backup && !isCancelled) {
+            setBoards(JSON.parse(backup));
+          }
+        }
+
+        if (profileRes.ok) {
+          const profile = (await profileRes.json()) as { displayName?: string; workspaceName?: string };
+          if (!isCancelled) {
+            if (profile.displayName) setUserName(profile.displayName);
+            if (profile.workspaceName) setWorkspaceName(profile.workspaceName);
+          }
+        }
+
+        // Tenter de purger la file d'attente hors-ligne si existante
+        void syncOfflineQueue();
+      } catch {
+        // En cas d'erreur totale réseau
+        const backup = window.localStorage.getItem(BOARDS_BACKUP_KEY);
+        if (backup && !isCancelled) {
+          setBoards(JSON.parse(backup));
+          setSyncStatus("error");
+        }
+      } finally {
+        if (!isCancelled) setLoading(false);
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [syncOfflineQueue]);
 
   const filteredBoards = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("fr");
     return boards.filter((board) => {
-      if (view === "trash") return board.isDeleted && (!term || board.title.toLocaleLowerCase("fr").includes(term));
-      if (board.isDeleted) return false;
-      if (view === "starred" && !board.favorite) return false;
-      if (view === "university" && board.kind !== "school") return false;
-      if (view === "personal" && board.kind === "school") return false;
-      return !term || board.title.toLocaleLowerCase("fr").includes(term) || BOARD_KIND_LABELS[board.kind].toLocaleLowerCase("fr").includes(term);
+      if (search && !board.title.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
     });
-  }, [boards, search, view]);
+  }, [boards, search]);
 
-  const pageTitle = view === "editor" ? activeBoard?.title ?? "Mon tableau" : view === "studio" ? "Studio d’export" : view === "overview" ? "Vue d’ensemble" : view === "starred" ? "Mes favoris" : view === "trash" ? "Corbeille" : view === "university" ? "Université" : view === "personal" ? "Personnel" : "Mes tableaux";
   const openTemplateDialog = () => setTemplateOpen(true);
+  const userInitials = (userName || "MC").trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "MC";
 
   return (
-    <div className={`app-frame ${dark ? "theme-dark" : ""}`}>
+    <div className="app-frame">
       <PlannerSidebar
         view={view}
         boards={boards}
         activeId={activeId}
-        onNavigate={(nextView) => { setView(nextView); setActiveId(null); }}
-        onOpenBoard={openBoard}
-        onCreate={openTemplateDialog}
         open={menuOpen}
+        onNavigate={(nextView) => setView(nextView)}
+        onCreate={openTemplateDialog}
+        onOpenBoard={openBoard}
         onClose={() => setMenuOpen(false)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
@@ -383,70 +502,88 @@ export function PlannerApp() {
         workspaceName={workspaceName || "Mon espace"}
       />
 
-      <main className="main-panel">
+      <main className="content">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu">
-              <Menu size={19} />
+            <button className="icon-button mobile-menu-button" aria-label="Ouvrir le menu" onClick={() => setMenuOpen(true)}>
+              <Menu size={18} />
             </button>
-            <div className="breadcrumbs">
-              <span>{workspaceName || "Mon espace"}</span>
-              <ChevronRight size={14} />
-              <strong>{pageTitle}</strong>
+            <div className="search-bar">
+              <Search size={14} className="search-icon" />
+              <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher… (Ctrl+K)" aria-label="Rechercher" />
+              {search && (
+                <button className="search-clear-button" onClick={() => setSearch("")} aria-label="Effacer">
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="topbar-actions">
-            <label className="search-box">
-              <Search size={16} />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un tableau, un cours…"
-                aria-label="Recherche rapide"
-              />
-              <kbd><Command size={11} />K</kbd>
-            </label>
-
-            <span className="topbar-divider" />
+          <div className="topbar-right">
+            {/* Statut de synchronisation avec indicateur hors-ligne */}
+            <div className="sync-indicator" title={syncStatus === "error" ? "Hors-ligne — Synchronisation en attente" : undefined}>
+              {syncStatus === "saving" && <span className="sync-badge sync-saving">Enregistrement…</span>}
+              {syncStatus === "saved" && <span className="sync-badge sync-saved"><Check size={12} /> Enregistré</span>}
+              {syncStatus === "error" && (
+                <span className="sync-badge sync-error flex items-center gap-1" style={{ color: "#c53030", background: "rgba(197, 48, 48, 0.1)" }}>
+                  <WifiOff size={12} /> Hors-ligne — En attente
+                </span>
+              )}
+            </div>
 
             <div className="brightness-wrapper" ref={brightnessRef}>
               <button
-                className={`icon-button brightness-toggle ${brightness !== 100 ? "has-filter" : ""}`}
-                onClick={() => setBrightnessOpen(!brightnessOpen)}
-                aria-label="Régler la luminosité"
+                className={`icon-button brightness-toggle ${brightness !== 100 ? "has-adjustment" : ""}`}
+                aria-label="Ajuster la luminosité"
                 title={`Luminosité : ${brightness}%`}
+                onClick={() => setBrightnessOpen(!brightnessOpen)}
               >
-                <SunMedium size={18} />
-                {brightness !== 100 && <span className="brightness-dot" />}
+                <SunMedium size={17} />
               </button>
+
               {brightnessOpen && (
-                <div className="brightness-popover" role="dialog" aria-label="Contrôle de luminosité">
+                <div className="brightness-popover" role="dialog" aria-label="Luminosité">
                   <div className="brightness-popover-header">
-                    <strong>Luminosité</strong>
-                    <span>{brightness}%</span>
+                    <span className="brightness-popover-title">
+                      <SunMedium size={14} /> Luminosité PlaniLux
+                    </span>
+                    <button className="stepper-reset-btn" onClick={() => applyBrightness(100)} title="Réinitialiser à 100%">
+                      100%
+                    </button>
                   </div>
-                  <div className="brightness-slider-row">
+
+                  <div className="brightness-controls-row">
+                    <button className="stepper-btn-sm" disabled={brightness <= 50} onClick={() => applyBrightness(brightness - 10)} aria-label="Diminuer">
+                      <Minus size={12} />
+                    </button>
                     <input
                       type="range"
-                      min="50"
-                      max="150"
-                      step="5"
+                      min={50}
+                      max={150}
+                      step={5}
                       value={brightness}
                       onChange={(e) => applyBrightness(Number(e.target.value))}
-                      aria-label="Curseur de luminosité"
+                      className="brightness-range"
+                      aria-label="Niveau de luminosité"
                     />
+                    <button className="stepper-btn-sm" disabled={brightness >= 150} onClick={() => applyBrightness(brightness + 10)} aria-label="Augmenter">
+                      <Plus size={12} />
+                    </button>
                   </div>
+
                   <div className="brightness-presets-bar">
-                    {[75, 90, 100, 115, 130].map((val) => (
+                    {[
+                      { label: "Tamis", val: 80 },
+                      { label: "100%", val: 100 },
+                      { label: "Clair", val: 120 },
+                      { label: "Max", val: 140 },
+                    ].map((p) => (
                       <button
-                        key={val}
-                        type="button"
-                        className={`brightness-chip ${brightness === val ? "is-active" : ""}`}
-                        onClick={() => applyBrightness(val)}
+                        key={p.val}
+                        className={`brightness-chip ${brightness === p.val ? "is-active" : ""}`}
+                        onClick={() => applyBrightness(p.val)}
                       >
-                        {val}%
+                        {p.label}
                       </button>
                     ))}
                   </div>
@@ -454,18 +591,16 @@ export function PlannerApp() {
               )}
             </div>
 
-            <button className="icon-button theme-toggle" onClick={toggleTheme} aria-label={dark ? "Passer au thème clair" : "Passer au thème sombre"}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button className="icon-button" aria-label="Basculer le thème" onClick={toggleTheme}>
+              {dark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
 
             <div className="notif-wrapper" ref={notifRef}>
-              <button
-                className="icon-button notification-button"
-                onClick={() => { setNotifOpen(!notifOpen); setHasUnreadNotifs(false); }}
-                aria-label="Notifications"
-                aria-expanded={notifOpen}
-              >
-                <Bell size={18} />
-                {hasUnreadNotifs && <i />}
+              <button className="icon-button notif-toggle" aria-label="Notifications" onClick={() => setNotifOpen(!notifOpen)}>
+                <Bell size={17} />
+                {hasUnreadNotifs && <span className="notif-unread-dot" />}
               </button>
+
               {notifOpen && (
                 <div className="notif-popover" role="dialog" aria-label="Notifications">
                   <div className="notif-popover-header">

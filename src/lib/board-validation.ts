@@ -13,6 +13,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseTimeToMinutes(time: string): number {
+  const parts = time.split(":").map(Number);
+  const hours = parts[0] || 0;
+  const minutes = parts[1] || 0;
+  return hours * 60 + minutes;
+}
+
+export function isValidCalendarDate(str: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const parts = str.split("-").map(Number);
+  const y = parts[0];
+  const m = parts[1];
+  const d = parts[2];
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 function optionalString(source: Record<string, unknown>, key: string, max: number): Result<string | undefined> {
   const value = source[key];
   if (value === undefined || value === null || value === "") return { ok: true, value: undefined };
@@ -28,6 +46,13 @@ export function validateEvent(input: unknown): Result<ScheduleEvent> {
   if (typeof day !== "number" || !Number.isInteger(day) || day < 0 || day > 400) return fail("Jour d'événement invalide.");
   if (typeof start !== "string" || !TIME_REGEX.test(start)) return fail("Heure de début invalide.");
   if (typeof end !== "string" || !TIME_REGEX.test(end)) return fail("Heure de fin invalide.");
+
+  const startMin = parseTimeToMinutes(start);
+  const endMin = parseTimeToMinutes(end);
+  if (endMin <= startMin) {
+    return fail("L'heure de fin doit être postérieure à l'heure de début.");
+  }
+
   if (typeof color !== "string" || color.length < 1 || color.length > 40) return fail("Couleur d'événement invalide.");
 
   const event: ScheduleEvent = { id, title, day, start, end, color };
@@ -39,6 +64,20 @@ export function validateEvent(input: unknown): Result<ScheduleEvent> {
     if (!parsed.ok) return parsed;
     if (parsed.value !== undefined) event[key] = parsed.value;
   }
+
+  if (event.date && !isValidCalendarDate(event.date)) {
+    return fail("Date calendaire invalide.");
+  }
+  if (event.validFrom && !isValidCalendarDate(event.validFrom)) {
+    return fail("Date de début de validité invalide.");
+  }
+  if (event.validTo && !isValidCalendarDate(event.validTo)) {
+    return fail("Date de fin de validité invalide.");
+  }
+  if (event.validFrom && event.validTo && event.validTo < event.validFrom) {
+    return fail("La date de fin de validité doit être postérieure à la date de début.");
+  }
+
   if (input.recurrence !== undefined && input.recurrence !== null) {
     if (input.recurrence !== "weekly" && input.recurrence !== "none") return fail("Récurrence invalide.");
     event.recurrence = input.recurrence;
@@ -65,7 +104,6 @@ export function validateProfileUpdate(input: unknown): Result<{ displayName?: st
 }
 
 export function validateEvents(input: unknown): Result<ScheduleEvent[]> {
-
   if (!Array.isArray(input)) return fail("La liste d'événements est invalide.");
   if (input.length > MAX_EVENTS) return fail(`Un tableau ne peut pas dépasser ${MAX_EVENTS} événements.`);
   const events: ScheduleEvent[] = [];

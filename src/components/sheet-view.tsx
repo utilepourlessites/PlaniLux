@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { Sparkles } from "lucide-react";
 import type { SheetModel } from "@/lib/sheet-layout";
 import type { ExportOptions } from "@/lib/exports";
 
@@ -14,7 +13,6 @@ type SheetViewProps = {
 export function SheetView({ model, options, previewRef }: SheetViewProps) {
   const isPhone = options.format === "phone";
   const isDesktop = options.format === "desktop";
-  const isWallpaper = isPhone || isDesktop;
 
   const ratio = isPhone
     ? "9 / 16"
@@ -27,13 +25,21 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
   const fontClass = `font-${options.font.toLowerCase()}`;
   const isPureWhite = options.whiteBackground;
 
+  // Calcul du facteur d'échelle typographique adaptatif selon l'amplitude horaire
+  const hourSpan = Math.max(1, model.hourEnd - model.hourStart);
+  // Pour 14h (8-22) -> facteur ~1.0. Pour 6h (ex 4h-10h) -> facteur ~1.65
+  const fontMultiplier = Math.max(1.0, Math.min(2.1, 14 / hourSpan));
+
   if (model.month) {
     const { monthLabel, weekdays, cells, eventsCount } = model.month;
     return (
       <div
         ref={previewRef}
         className={`export-paper sheet-unified ${fontClass} ${isPureWhite ? "paper-pure-white" : ""} ${isPhone ? "export-paper-phone" : ""}`}
-        style={{ aspectRatio: ratio }}
+        style={{
+          aspectRatio: ratio,
+          ["--font-multiplier" as any]: fontMultiplier,
+        }}
       >
         <div className="export-paper-header">
           <div>
@@ -90,9 +96,29 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
           </div>
         </div>
 
+        {options.showHoursSummary && model.employeesSummary && model.employeesSummary.length > 0 && (
+          <div className="sheet-summary-section">
+            <div className="sheet-summary-title">Récapitulatif des heures :</div>
+            <div className="sheet-summary-chips">
+              {model.employeesSummary.map((emp) => (
+                <div key={emp.name} className="sheet-summary-chip">
+                  <strong>{emp.name}</strong>: <span>{emp.formattedHours}</span> ({emp.count} créneau{emp.count > 1 ? "x" : ""})
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {options.showSignatureLine && (
+          <div className="sheet-signature-row">
+            <span>Signature / Validation : ____________________________</span>
+            <span>Date : __________________</span>
+          </div>
+        )}
+
         <div className="export-paper-footer">
           <span>{eventsCount} créneau(x) ce mois-ci · Chaque chose à sa place.</span>
-          <i>✳</i>
+          <i>❋</i>
         </div>
       </div>
     );
@@ -100,13 +126,16 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
 
   // Disposition Hebdomadaire
   const { hourStart, hourEnd, hours, columns } = model;
-  const hourStepPercent = 100 / (hourEnd - hourStart);
+  const hourStepPercent = 100 / Math.max(1, hourEnd - hourStart);
 
   return (
     <div
       ref={previewRef}
       className={`export-paper sheet-unified ${fontClass} ${isPureWhite ? "paper-pure-white" : ""} ${isPhone ? "export-paper-phone" : ""}`}
-      style={{ aspectRatio: ratio }}
+      style={{
+        aspectRatio: ratio,
+        ["--font-multiplier" as any]: fontMultiplier,
+      }}
     >
       <div className="export-paper-header">
         <div>
@@ -157,7 +186,7 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
                   />
                 ))}
 
-                {/* Événements placés */}
+                {/* Événements placés avec centrage strict et contraste auto */}
                 {col.events.length === 0 ? (
                   <div className="sheet-empty-day-note">
                     <span>Libre</span>
@@ -167,12 +196,12 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
                     const widthPercent = 100 / event.totalCols;
                     const leftPercent = (event.col / event.totalCols) * 100;
                     const bg = isPureWhite ? "#ffffff" : event.color;
-                    const border = event.color;
+                    const border = isPureWhite ? "#e2e8f0" : event.color;
 
                     return (
                       <div
                         key={event.id}
-                        className="sheet-event-card"
+                        className="sheet-event-card sheet-event-centered"
                         style={{
                           top: `${event.topPercent}%`,
                           height: `${event.heightPercent}%`,
@@ -180,20 +209,85 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
                           width: `calc(${widthPercent}% - 2px)`,
                           backgroundColor: bg,
                           borderColor: border,
+                          color: isPureWhite ? "#0f172a" : event.textColor,
                         }}
                       >
-                        <div className="sheet-event-content">
+                        <div
+                          className="sheet-event-content-centered"
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            textAlign: "center",
+                            height: "100%",
+                            width: "100%",
+                            padding: "4px 6px",
+                            boxSizing: "border-box",
+                          }}
+                        >
                           {options.showTimes && (
-                            <span className="sheet-event-time">
-                              {event.start} – {event.end}
+                            <div
+                              className="sheet-event-time-badge"
+                              style={{
+                                fontSize: `calc(0.72rem * ${Math.min(1.5, fontMultiplier)})`,
+                                color: isPureWhite ? "#475569" : event.secondaryTextColor,
+                                fontWeight: 600,
+                                marginBottom: 2,
+                              }}
+                            >
+                              <span>{event.start} – {event.end}</span>
+                              <span
+                                className="duration-pill"
+                                style={{
+                                  display: "inline-block",
+                                  marginLeft: 4,
+                                  padding: "1px 5px",
+                                  borderRadius: 4,
+                                  fontSize: "0.85em",
+                                  backgroundColor: "rgba(0, 0, 0, 0.08)",
+                                }}
+                              >
+                                {event.formattedDuration}
+                              </span>
+                            </div>
+                          )}
+
+                          <strong
+                            className="sheet-event-title"
+                            style={{
+                              fontSize: `calc(0.85rem * ${Math.min(1.6, fontMultiplier)})`,
+                              lineHeight: 1.25,
+                              color: isPureWhite ? "#0f172a" : event.textColor,
+                            }}
+                          >
+                            {event.title}
+                          </strong>
+
+                          {event.teacher && event.heightPercent > 7 && (
+                            <span
+                              className="sheet-event-teacher"
+                              style={{
+                                fontSize: `calc(0.72rem * ${Math.min(1.4, fontMultiplier)})`,
+                                color: isPureWhite ? "#334155" : event.secondaryTextColor,
+                                marginTop: 2,
+                              }}
+                            >
+                              👤 {event.teacher}
                             </span>
                           )}
-                          <strong className="sheet-event-title">{event.title}</strong>
-                          {event.location && event.heightPercent > 7 && (
-                            <small className="sheet-event-location">{event.location}</small>
-                          )}
-                          {event.teacher && event.heightPercent > 10 && (
-                            <small className="sheet-event-teacher">{event.teacher}</small>
+
+                          {event.location && event.heightPercent > 10 && (
+                            <span
+                              className="sheet-event-location"
+                              style={{
+                                fontSize: `calc(0.68rem * ${Math.min(1.3, fontMultiplier)})`,
+                                color: isPureWhite ? "#475569" : event.secondaryTextColor,
+                                marginTop: 1,
+                              }}
+                            >
+                              📍 {event.location}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -206,9 +300,31 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
         </div>
       </div>
 
+      {options.showHoursSummary && model.employeesSummary && model.employeesSummary.length > 0 && (
+        <div className="sheet-summary-section">
+          <div className="sheet-summary-title">Heures travaillées :</div>
+          <div className="sheet-summary-grid">
+            {model.employeesSummary.map((emp) => (
+              <div key={emp.name} className="sheet-summary-card">
+                <strong>{emp.name}</strong>
+                <span>{emp.formattedHours}</span>
+                <small>({emp.count} créneau{emp.count > 1 ? "x" : ""})</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {options.showSignatureLine && (
+        <div className="sheet-signature-row">
+          <span>Signature / Validation : ____________________________</span>
+          <span>Date : __________________</span>
+        </div>
+      )}
+
       <div className="export-paper-footer">
         <span>Chaque chose à sa place. Et du temps pour toi aussi.</span>
-        <i>✳</i>
+        <i>❋</i>
       </div>
     </div>
   );

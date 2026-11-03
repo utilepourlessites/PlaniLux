@@ -8,17 +8,28 @@ const unauthorized = () => NextResponse.json({ error: "Connexion requise." }, { 
 export async function DELETE() {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return unauthorized();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return unauthorized();
 
     // 1. Supprimer tous les plannings de l'utilisateur
-    await supabase.from("planner_boards").delete().eq("user_id", user.id);
+    const { error: boardsError } = await supabase.from("planner_boards").delete().eq("user_id", user.id);
+    if (boardsError) {
+      console.error("Erreur suppression planner_boards:", boardsError);
+      return NextResponse.json({ error: "Impossible de supprimer les plannings." }, { status: 500 });
+    }
 
     // 2. Supprimer la ligne de profil
-    await supabase.from("profiles").delete().eq("id", user.id);
+    const { error: profileError } = await supabase.from("profiles").delete().eq("id", user.id);
+    if (profileError) {
+      console.error("Erreur suppression profil:", profileError);
+      return NextResponse.json({ error: "Impossible de supprimer le profil." }, { status: 500 });
+    }
 
-    // 3. Déconnexion
-    await supabase.auth.signOut();
+    // 3. Déconnexion de la session
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      console.error("Erreur déconnexion:", signOutError);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

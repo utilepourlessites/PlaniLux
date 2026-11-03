@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import {
-  Check, Download, LogOut, Minus, Moon, Plus,
-  Settings2, Sparkles, Sun, SunMedium, Trash2, Type, Upload, UserRound, X,
+  Check, Download, LogOut, Minus, Moon, Plus, RotateCcw,
+  Settings2, Sparkles, Sun, Trash2, Upload, UserRound, X,
 } from "lucide-react";
 import type { PlannerBoard } from "@/lib/planner-types";
 
@@ -28,20 +28,6 @@ type Props = {
   onToast: (message: string) => void;
 };
 
-const FONT_PRESETS = [
-  { label: "Petite", value: 85, desc: "Affichage compact" },
-  { label: "Normale", value: 100, desc: "Taille recommandée" },
-  { label: "Grande", value: 115, desc: "Plus lisible et aéré" },
-  { label: "Très grande", value: 130, desc: "Confort maximal" },
-];
-
-const BRIGHTNESS_PRESETS = [
-  { label: "Tamisée", value: 80, desc: "Repos des yeux" },
-  { label: "Normale", value: 100, desc: "Luminosité standard" },
-  { label: "Claire", value: 115, desc: "Contraste rehaussé" },
-  { label: "Éclatante", value: 130, desc: "Plein jour" },
-];
-
 export function SettingsDialog({
   open,
   onClose,
@@ -62,7 +48,6 @@ export function SettingsDialog({
   onLogout,
   onToast,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "data">("appearance");
   const [pendingImport, setPendingImport] = useState<PlannerBoard[] | null>(null);
   const [confirmClearData, setConfirmClearData] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
@@ -75,7 +60,7 @@ export function SettingsDialog({
     try {
       const payload = {
         app: "PlaniLux",
-        version: "2.0",
+        version: "2.1",
         exportedAt: new Date().toISOString(),
         boards,
       };
@@ -126,351 +111,360 @@ export function SettingsDialog({
   };
 
   return (
-    <div className="dialog-backdrop" onClick={onClose} role="presentation">
+    <div
+      className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
-        className="dialog-card settings-dialog-card"
+        className="dialog-card settings-dialog-card max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Paramètres de l’application"
+        style={{ margin: "auto" }}
       >
-        <div className="dialog-header">
-          <div className="settings-title-group">
-            <span className="settings-header-icon"><Settings2 size={18} /></span>
+        {/* En-tête Paramètres */}
+        <div className="dialog-header flex items-center justify-between pb-3 border-b border-line">
+          <div className="settings-title-group flex items-center gap-3">
+            <span className="settings-header-icon p-2 rounded-xl bg-surface-tint text-violet">
+              <Settings2 size={20} />
+            </span>
             <div>
-              <h3>Paramètres</h3>
-              <p>Personnalisez votre confort visuel et votre espace.</p>
+              <h3 className="text-lg font-bold">Paramètres</h3>
+              <p className="text-xs text-muted">Personnalisez votre confort visuel, profil et sécurité.</p>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+          <button className="icon-button" onClick={onClose} aria-label="Fermer">
+            <X size={18} />
+          </button>
         </div>
 
-        <nav className="settings-tabs" aria-label="Sections des paramètres">
-          <button
-            className={`settings-tab-btn ${activeTab === "appearance" ? "is-active" : ""}`}
-            onClick={() => setActiveTab("appearance")}
-          >
-            <SunMedium size={15} /> Apparence
-          </button>
-          <button
-            className={`settings-tab-btn ${activeTab === "profile" ? "is-active" : ""}`}
-            onClick={() => setActiveTab("profile")}
-          >
-            <UserRound size={15} /> Profil & Espace
-          </button>
-          <button
-            className={`settings-tab-btn ${activeTab === "data" ? "is-active" : ""}`}
-            onClick={() => setActiveTab("data")}
-          >
-            <Download size={15} /> Données & Sécurité
-          </button>
-        </nav>
-
-        <div className="dialog-body settings-body">
-          {activeTab === "appearance" && (
-            <div className="settings-section">
-              <div className="setting-card">
-                <div className="setting-card-header">
-                  <div>
-                    <strong>Taille des écrits ({fontScale} %)</strong>
-                    <span>Ajustez l’échelle de l’ensemble des textes pour un confort de lecture optimal.</span>
-                  </div>
-                  <span className="setting-badge">{fontScale}%</span>
-                </div>
-                <div className="slider-control">
-                  <span className="slider-label">75 %</span>
-                  <input
-                    type="range"
-                    min="75"
-                    max="150"
-                    step="5"
-                    value={fontScale}
-                    onChange={(e) => onChangeFontScale(Number(e.target.value))}
-                    aria-label="Taille de police globale"
-                  />
-                  <span className="slider-label">150 %</span>
-                </div>
-                <div className="preset-chips">
-                  {FONT_PRESETS.map((preset) => (
-                    <button
-                      key={preset.value}
-                      className={`preset-chip ${fontScale === preset.value ? "is-active" : ""}`}
-                      onClick={() => onChangeFontScale(preset.value)}
-                    >
-                      <strong>{preset.label}</strong>
-                      <small>{preset.desc}</small>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {onChangeBrightness && (
-                <div className="setting-card">
-                  <div className="setting-card-header">
-                    <div>
-                      <strong>Luminosité de l’espace ({brightness} %)</strong>
-                      <span>Atténuez ou rehaussez l’intensité lumineuse pour reposer vos yeux.</span>
-                    </div>
-                    <span className="setting-badge">{brightness}%</span>
-                  </div>
-                  <div className="slider-control">
-                    <span className="slider-label">50 %</span>
-                    <input
-                      type="range"
-                      min="50"
-                      max="150"
-                      step="5"
-                      value={brightness}
-                      onChange={(e) => onChangeBrightness(Number(e.target.value))}
-                      aria-label="Luminosité globale"
-                    />
-                    <span className="slider-label">150 %</span>
-                  </div>
-                  <div className="preset-chips">
-                    {BRIGHTNESS_PRESETS.map((preset) => (
-                      <button
-                        key={preset.value}
-                        className={`preset-chip ${brightness === preset.value ? "is-active" : ""}`}
-                        onClick={() => onChangeBrightness(preset.value)}
-                      >
-                        <strong>{preset.label}</strong>
-                        <small>{preset.desc}</small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="setting-card">
-                <div className="theme-selection-row">
-                  <div>
-                    <strong>Mode d’affichage</strong>
-                    <span>Basculez entre le thème clair et le thème sombre.</span>
-                  </div>
-                  <div className="theme-toggle-pills">
-                    <button
-                      className={`theme-pill ${!dark ? "is-active" : ""}`}
-                      onClick={() => { if (dark) onToggleDark(); }}
-                    >
-                      <Sun size={14} /> Clair
-                    </button>
-                    <button
-                      className={`theme-pill ${dark ? "is-active" : ""}`}
-                      onClick={() => { if (!dark) onToggleDark(); }}
-                    >
-                      <Moon size={14} /> Sombre
-                    </button>
-                  </div>
-                </div>
-              </div>
+        <div className="settings-content-flow space-y-6 pt-4">
+          {/* Section 1 : Profil & Espace */}
+          <section className="settings-section rounded-xl p-4 bg-surface-soft border border-line">
+            <div className="section-label mb-3 font-semibold text-xs tracking-wider text-muted uppercase flex items-center gap-2">
+              <UserRound size={14} className="text-violet" />
+              1. Profil & Espace de travail
             </div>
-          )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="field-label block">
+                <span className="text-xs font-medium text-ink-soft mb-1 block">Nom d’affichage</span>
+                <input
+                  type="text"
+                  className="text-input w-full"
+                  maxLength={60}
+                  value={userName}
+                  onChange={(e) => onChangeUserName(e.target.value)}
+                  placeholder="Ex. Marie Curie"
+                />
+              </label>
 
-          {activeTab === "profile" && (
-            <div className="settings-section">
-              <div className="setting-card">
-                <label className="setting-field">
-                  <span>Votre prénom et nom</span>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => onChangeUserName(e.target.value)}
-                    placeholder="Votre prénom et nom"
-                    maxLength={60}
-                  />
-                  <small>Ce nom apparaît dans la salutation d’accueil et sur vos tableaux.</small>
-                </label>
+              <label className="field-label block">
+                <span className="text-xs font-medium text-ink-soft mb-1 block">Nom de l’espace</span>
+                <input
+                  type="text"
+                  className="text-input w-full"
+                  maxLength={60}
+                  value={workspaceName}
+                  onChange={(e) => onChangeWorkspaceName(e.target.value)}
+                  placeholder="Ex. Mon Espace"
+                />
+              </label>
+            </div>
+          </section>
+
+          {/* Section 2 : Apparence */}
+          <section className="settings-section rounded-xl p-4 bg-surface-soft border border-line">
+            <div className="section-label mb-3 font-semibold text-xs tracking-wider text-muted uppercase flex items-center gap-2">
+              <Sun size={14} className="text-violet" />
+              2. Apparence & Confort visuel
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Thème Clair / Sombre */}
+              <div className="appearance-card p-3 rounded-lg bg-surface border border-line flex items-center justify-between">
+                <div>
+                  <strong className="block text-sm">Mode d’affichage</strong>
+                  <span className="text-xs text-muted">{dark ? "Sombre (repos des yeux)" : "Clair (lumineux)"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="button-quiet flex items-center gap-2 text-xs"
+                  onClick={onToggleDark}
+                  aria-label="Basculer le thème"
+                >
+                  {dark ? <Moon size={15} className="text-violet" /> : <Sun size={15} className="text-orange" />}
+                  <span>{dark ? "Sombre" : "Clair"}</span>
+                </button>
               </div>
 
-              <div className="setting-card">
-                <label className="setting-field">
-                  <span>Nom de l’espace de travail</span>
-                  <input
-                    type="text"
-                    value={workspaceName}
-                    onChange={(e) => onChangeWorkspaceName(e.target.value)}
-                    placeholder="Nom de votre espace"
-                    maxLength={60}
-                  />
-                  <small>Affiché en haut du menu latéral et dans le fil d’Ariane.</small>
-                </label>
-              </div>
-
-              <div className="setting-card setting-card-logout">
-                <div className="data-action-row">
-                  <div>
-                    <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <LogOut size={15} /> Session & Compte
-                    </strong>
-                    <span>Fermer la session actuelle et revenir à l’écran de connexion.</span>
+              {/* Échelle de texte 75% - 150% */}
+              <div className="appearance-card p-3 rounded-lg bg-surface border border-line">
+                <div className="flex items-center justify-between mb-2">
+                  <strong className="text-sm">Échelle du texte</strong>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-violet">{fontScale}%</span>
+                    {fontScale !== 100 && (
+                      <button
+                        type="button"
+                        className="stepper-reset-btn text-[10px] px-2 py-0.5 rounded bg-surface-tint text-violet hover:bg-violet hover:text-white"
+                        onClick={() => onChangeFontScale(100)}
+                        title="Réinitialiser à 100 %"
+                      >
+                        <RotateCcw size={10} className="inline mr-1" />100%
+                      </button>
+                    )}
                   </div>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (onLogout) onLogout();
-                      else window.location.href = "/login";
-                    }}
-                    className="button-secondary btn-logout-action"
-                    style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, color: "#d9534f" }}
+                    className="stepper-btn-sm"
+                    disabled={fontScale <= 75}
+                    onClick={() => onChangeFontScale(Math.max(75, fontScale - 5))}
                   >
-                    <LogOut size={14} /> Se déconnecter
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "data" && (
-            <div className="settings-section">
-              <div className="setting-card">
-                <div className="data-action-row">
-                  <div>
-                    <strong>Exporter mes tableaux</strong>
-                    <span>Télécharge un fichier JSON contenant tous vos plannings et créneaux.</span>
-                  </div>
-                  <button className="button-secondary" onClick={handleExportBackup}>
-                    <Download size={14} /> Exporter la sauvegarde
-                  </button>
-                </div>
-              </div>
-
-              <div className="setting-card">
-                <div className="data-action-row">
-                  <div>
-                    <strong>Importer des tableaux</strong>
-                    <span>Restaure des plannings depuis un fichier JSON précédemment exporté.</span>
-                  </div>
-                  <button className="button-secondary" onClick={() => fileInputRef.current?.click()}>
-                    <Upload size={14} /> Importer un fichier
+                    <Minus size={12} />
                   </button>
                   <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    style={{ display: "none" }}
-                    onChange={handleImportFile}
+                    type="range"
+                    min={75}
+                    max={150}
+                    step={5}
+                    value={fontScale}
+                    onChange={(e) => onChangeFontScale(Number(e.target.value))}
+                    className="brightness-range flex-1"
                   />
+                  <button
+                    type="button"
+                    className="stepper-btn-sm"
+                    disabled={fontScale >= 150}
+                    onClick={() => onChangeFontScale(Math.min(150, fontScale + 5))}
+                  >
+                    <Plus size={12} />
+                  </button>
                 </div>
               </div>
 
-              <div className="setting-card setting-card-danger">
-                <div className="data-action-row">
-                  <div>
-                    <strong className="text-danger">Supprimer tous mes tableaux</strong>
-                    <span>Supprime définitivement l’ensemble de vos tableaux et créneaux.</span>
+              {/* Luminosité 50% - 150% */}
+              {onChangeBrightness && (
+                <div className="appearance-card p-3 rounded-lg bg-surface border border-line sm:col-span-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <strong className="text-sm">Luminosité de l&apos;application</strong>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-violet">{brightness}%</span>
+                      {brightness !== 100 && (
+                        <button
+                          type="button"
+                          className="stepper-reset-btn text-[10px] px-2 py-0.5 rounded bg-surface-tint text-violet hover:bg-violet hover:text-white"
+                          onClick={() => onChangeBrightness(100)}
+                          title="Réinitialiser à 100 %"
+                        >
+                          <RotateCcw size={10} className="inline mr-1" />100%
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="stepper-btn-sm"
+                      disabled={brightness <= 50}
+                      onClick={() => onChangeBrightness(Math.max(50, brightness - 5))}
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <input
+                      type="range"
+                      min={50}
+                      max={150}
+                      step={5}
+                      value={brightness}
+                      onChange={(e) => onChangeBrightness(Number(e.target.value))}
+                      className="brightness-range flex-1"
+                    />
+                    <button
+                      type="button"
+                      className="stepper-btn-sm"
+                      disabled={brightness >= 150}
+                      onClick={() => onChangeBrightness(Math.min(150, brightness + 5))}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Section 3 : Sauvegarde & Import */}
+          <section className="settings-section rounded-xl p-4 bg-surface-soft border border-line">
+            <div className="section-label mb-3 font-semibold text-xs tracking-wider text-muted uppercase flex items-center gap-2">
+              <Download size={14} className="text-violet" />
+              3. Sauvegarde & Import JSON
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-3 rounded-lg bg-surface border border-line">
+                <strong className="block text-sm mb-1">Sauvegarder mes plannings</strong>
+                <p className="text-xs text-muted mb-3">Téléchargez un fichier JSON complet de tous vos tableaux.</p>
+                <button
+                  type="button"
+                  className="button-quiet w-full justify-center flex items-center gap-2"
+                  onClick={handleExportBackup}
+                >
+                  <Download size={14} /> Exporter la sauvegarde
+                </button>
+              </div>
+
+              <div className="p-3 rounded-lg bg-surface border border-line">
+                <strong className="block text-sm mb-1">Restaurer des plannings</strong>
+                <p className="text-xs text-muted mb-3">Importez des tableaux depuis un fichier JSON PlaniLux.</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+                <button
+                  type="button"
+                  className="button-quiet w-full justify-center flex items-center gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={14} /> Importer un fichier JSON
+                </button>
+              </div>
+            </div>
+
+            {pendingImport && (
+              <div className="mt-4 p-4 rounded-xl bg-surface border border-line shadow-soft">
+                <strong className="block text-sm mb-1">Importer {pendingImport.length} tableau(x) ?</strong>
+                <p className="text-xs text-muted mb-3">Ces tableaux seront ajoutés à votre espace.</p>
+                <div className="flex gap-2">
+                  <button type="button" className="button-primary" onClick={applyMergeImport}>
+                    Confirmer l’import
+                  </button>
+                  <button type="button" className="button-quiet" onClick={() => setPendingImport(null)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Section 4 : Compte & Sécurité */}
+          <section className="settings-section rounded-xl p-4 bg-surface-soft border border-line">
+            <div className="section-label mb-3 font-semibold text-xs tracking-wider text-muted uppercase flex items-center gap-2">
+              <Trash2 size={14} className="text-red" />
+              4. Compte & Sécurité
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-3 rounded-lg bg-surface border border-line">
+                <strong className="block text-sm mb-1">Session active</strong>
+                <p className="text-xs text-muted mb-3">Fermer votre session sur cet appareil.</p>
+                <button
+                  type="button"
+                  className="button-quiet text-danger w-full justify-center flex items-center gap-2"
+                  onClick={onLogout}
+                >
+                  <LogOut size={14} /> Se déconnecter
+                </button>
+              </div>
+
+              <div className="p-3 rounded-lg bg-surface border border-line">
+                <strong className="block text-sm mb-1">Zone de danger</strong>
+                <p className="text-xs text-muted mb-3">Suppression de données ou du compte.</p>
+                <div className="flex flex-col gap-2">
                   <button
-                    className="button-quiet text-danger"
+                    type="button"
+                    className="button-quiet text-danger w-full justify-center"
                     onClick={() => setConfirmClearData(true)}
                   >
-                    <Trash2 size={14} /> Tout effacer
+                    Effacer tous les plannings
                   </button>
-                </div>
-              </div>
-
-              <div className="setting-card setting-card-danger" style={{ borderTop: "1px dashed #fed7d7", marginTop: 8 }}>
-                <div className="data-action-row">
-                  <div>
-                    <strong className="text-danger">Supprimer mon compte</strong>
-                    <span>Efface définitivement votre profil et toutes vos données sur PlaniLux.</span>
-                  </div>
                   <button
-                    className="button-quiet text-danger"
+                    type="button"
+                    className="button-quiet text-danger w-full justify-center"
                     onClick={() => { setConfirmDeleteAccount(true); setDeleteInputText(""); }}
                   >
-                    <Trash2 size={14} /> Supprimer le compte
+                    Supprimer le compte
                   </button>
                 </div>
               </div>
-
-              {pendingImport && (
-                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "var(--surface-soft)", border: "1px solid var(--line)" }}>
-                  <strong style={{ display: "block", marginBottom: 6 }}>
-                    Importer {pendingImport.length} tableau(x)
-                  </strong>
-                  <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                    Intégrer ces plannings à votre espace personnel :
-                  </p>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button type="button" className="button-primary" onClick={applyMergeImport}>
-                      Importer mes tableaux
-                    </button>
-                    <button type="button" className="button-quiet" onClick={() => setPendingImport(null)}>
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {confirmClearData && (
-                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "#fff5f5", border: "1px solid #fed7d7" }}>
-                  <strong style={{ display: "block", marginBottom: 6, color: "#c53030" }}>
-                    Confirmer la suppression de tous les tableaux ?
-                  </strong>
-                  <p style={{ margin: "0 0 12px", fontSize: "0.8125rem", color: "#9b2c2c" }}>
-                    Cette action efface définitivement tous vos plannings de la base de données.
-                  </p>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      type="button"
-                      className="button-primary"
-                      style={{ background: "#c53030", borderColor: "#c53030" }}
-                      onClick={() => {
-                        setConfirmClearData(false);
-                        onClearData();
-                      }}
-                    >
-                      Oui, tout supprimer
-                    </button>
-                    <button type="button" className="button-quiet" onClick={() => setConfirmClearData(false)}>
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {confirmDeleteAccount && (
-                <div className="dialog-sub-confirm" style={{ marginTop: 16, padding: "14px 16px", borderRadius: 10, background: "#fff5f5", border: "1px solid #fed7d7" }}>
-                  <strong style={{ display: "block", marginBottom: 6, color: "#c53030" }}>
-                    Confirmer la suppression définitive de votre compte ?
-                  </strong>
-                  <p style={{ margin: "0 0 8px", fontSize: "0.8125rem", color: "#9b2c2c" }}>
-                    Tapez <strong>SUPPRIMER</strong> ci-dessous pour confirmer :
-                  </p>
-                  <input
-                    type="text"
-                    value={deleteInputText}
-                    onChange={(e) => setDeleteInputText(e.target.value)}
-                    placeholder="SUPPRIMER"
-                    style={{ marginBottom: 12, padding: "6px 10px", borderRadius: 6, border: "1px solid #feb2b2", width: "100%", maxWidth: 220 }}
-                  />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      type="button"
-                      disabled={deleteInputText !== "SUPPRIMER"}
-                      className="button-primary"
-                      style={{ background: deleteInputText === "SUPPRIMER" ? "#c53030" : "#cbd5e0", borderColor: "transparent" }}
-                      onClick={() => {
-                        setConfirmDeleteAccount(false);
-                        onDeleteAccount();
-                      }}
-                    >
-                      Supprimer définitivement
-                    </button>
-                    <button type="button" className="button-quiet" onClick={() => setConfirmDeleteAccount(false)}>
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
-          )}
+
+            {confirmClearData && (
+              <div className="mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+                <strong className="block text-sm text-red-700 dark:text-red-400 mb-1">
+                  Confirmer la suppression de tous les tableaux ?
+                </strong>
+                <p className="text-xs text-red-600 dark:text-red-300 mb-3">
+                  Cette action efface définitivement tous vos plannings.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    style={{ background: "#c53030", borderColor: "#c53030" }}
+                    onClick={() => {
+                      setConfirmClearData(false);
+                      onClearData();
+                    }}
+                  >
+                    Oui, tout supprimer
+                  </button>
+                  <button type="button" className="button-quiet" onClick={() => setConfirmClearData(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {confirmDeleteAccount && (
+              <div className="mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+                <strong className="block text-sm text-red-700 dark:text-red-400 mb-1">
+                  Confirmer la suppression définitive de votre compte ?
+                </strong>
+                <p className="text-xs text-red-600 dark:text-red-300 mb-2">
+                  Tapez <strong>SUPPRIMER</strong> ci-dessous pour confirmer :
+                </p>
+                <input
+                  type="text"
+                  value={deleteInputText}
+                  onChange={(e) => setDeleteInputText(e.target.value)}
+                  placeholder="SUPPRIMER"
+                  className="text-input w-full max-w-xs mb-3"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={deleteInputText !== "SUPPRIMER"}
+                    className="button-primary"
+                    style={{ background: deleteInputText === "SUPPRIMER" ? "#c53030" : "#cbd5e0", borderColor: "transparent" }}
+                    onClick={() => {
+                      setConfirmDeleteAccount(false);
+                      onDeleteAccount();
+                    }}
+                  >
+                    Supprimer définitivement
+                  </button>
+                  <button type="button" className="button-quiet" onClick={() => setConfirmDeleteAccount(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
-        <div className="settings-footer">
-          <span className="settings-autosave-note">
-            <Check size={13} /> Les préférences d’affichage sont mémorisées sur cet appareil.
+        {/* Pied de page */}
+        <div className="dialog-footer mt-6 pt-3 border-t border-line flex items-center justify-between">
+          <span className="text-xs text-muted flex items-center gap-1.5">
+            <Check size={13} className="text-green" /> Vos préférences sont synchronisées sur cet appareil.
           </span>
-          <button className="button-primary" onClick={onClose}>Terminer</button>
+          <button className="button-primary" onClick={onClose}>
+            Terminer
+          </button>
         </div>
       </div>
     </div>
