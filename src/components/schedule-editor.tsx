@@ -49,7 +49,7 @@ export function ScheduleEditor({
   onBoardChange: (board: PlannerBoard) => void;
   onBack: () => void;
   onOpenStudio: () => void;
-  onEventSave: (event: ScheduleEvent) => void;
+  onEventSave: (event: ScheduleEvent | ScheduleEvent[]) => void;
   onEventDelete: (id: string) => void;
   onToast: (message: string) => void;
   syncStatus?: "saving" | "saved" | "error" | "idle";
@@ -137,12 +137,8 @@ export function ScheduleEditor({
       onToast("L’heure de fin doit être après celle du début");
       return;
     }
-    onEventSave(event);
-    if (extraEvents && extraEvents.length) {
-      for (const extra of extraEvents) {
-        onEventSave(extra);
-      }
-    }
+    const all = extraEvents && extraEvents.length ? [event, ...extraEvents] : event;
+    onEventSave(all);
     setEditing(null);
   };
 

@@ -191,11 +191,19 @@ export function PlannerApp() {
       try {
         const method = item.isNew ? "POST" : "PATCH";
         const url = item.isNew ? "/api/boards" : `/api/boards/${item.board.id}`;
-        const res = await fetch(url, {
+        let res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(item.board),
         });
+        if (!res.ok && item.isNew && res.status === 409) {
+          // Si le tableau existe déjà côté distant, basculer en PATCH
+          res = await fetch(`/api/boards/${item.board.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item.board),
+          });
+        }
         if (!res.ok && res.status !== 404) {
           remaining.push(item);
         }
@@ -332,13 +340,21 @@ export function PlannerApp() {
     setView("editor");
   };
 
-  const updateEvent = (updated: ScheduleEvent) => {
+  const updateEvent = (updated: ScheduleEvent | ScheduleEvent[]) => {
     if (!activeBoard) return;
-    const found = activeBoard.events.some((event) => event.id === updated.id);
-    const events = found
-      ? activeBoard.events.map((event) => event.id === updated.id ? updated : event)
-      : [...activeBoard.events, updated];
-    commitBoard({ ...activeBoard, events, updatedAt: new Date().toISOString() });
+    const items = Array.isArray(updated) ? updated : [updated];
+    if (items.length === 0) return;
+
+    let currentEvents = [...activeBoard.events];
+    for (const item of items) {
+      const idx = currentEvents.findIndex((event) => event.id === item.id);
+      if (idx >= 0) {
+        currentEvents[idx] = item;
+      } else {
+        currentEvents.push(item);
+      }
+    }
+    commitBoard({ ...activeBoard, events: currentEvents, updatedAt: new Date().toISOString() });
   };
 
   const deleteEvent = (id: string) => {
@@ -474,12 +490,17 @@ export function PlannerApp() {
     };
   }, [syncOfflineQueue]);
 
-  const filteredBoards = useMemo(() => {
+  const viewBoards = useMemo(() => {
     return boards.filter((board) => {
       if (search && !board.title.toLowerCase().includes(search.toLowerCase())) return false;
+      if (view === "trash") return !!board.isDeleted;
+      if (board.isDeleted) return false;
+      if (view === "starred") return !!board.favorite;
+      if (view === "university") return board.kind === "school";
+      if (view === "personal") return board.kind !== "school";
       return true;
     });
-  }, [boards, search]);
+  }, [boards, search, view]);
 
   const openTemplateDialog = () => setTemplateOpen(true);
   const userInitials = (userName || "MC").trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "MC";
@@ -646,7 +667,7 @@ export function PlannerApp() {
             {(view === "boards" || view === "starred" || view === "university" || view === "personal") && (
               <BoardLibrary
                 view={view}
-                boards={filteredBoards}
+                boards={viewBoards}
                 query={search}
                 onCreate={openTemplateDialog}
                 onOpen={openBoard}
@@ -663,7 +684,7 @@ export function PlannerApp() {
             {view === "trash" && (
               <BoardLibrary
                 view="trash"
-                boards={filteredBoards}
+                boards={viewBoards}
                 query={search}
                 onCreate={openTemplateDialog}
                 onOpen={openBoard}
