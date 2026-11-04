@@ -4,9 +4,6 @@ import {
   buildSheetModel,
   safeName,
   splitColor,
-  formatDuration,
-  computeEmployeesSummary,
-  getContrastTextColor,
   type SheetModel,
 } from "@/lib/sheet-layout";
 
@@ -20,10 +17,6 @@ export type ExportOptions = {
   showTimes: boolean;
   showLogo: boolean;
   font: "Sans" | "Serif" | "Mono";
-  autoCrop?: boolean;
-  employeeFilter?: string;
-  showHoursSummary?: boolean;
-  showSignatureLine?: boolean;
 };
 
 export const TARGET_WALLPAPER = {
@@ -43,119 +36,6 @@ function formatFileName(title: string, format: ExportFormat, orientation: string
   const dateStr = new Date().toISOString().slice(0, 10);
   const orientStr = format === "phone" ? "9-16" : format === "desktop" ? "16-9" : orientation;
   return `${safeName(title)}-${dateStr}-${format}-${orientStr}.${ext}`;
-}
-
-export function generateWhatsAppSummary(board: PlannerBoard, options?: { employeeFilter?: string }): string {
-  const model = buildSheetModel(board, {
-    autoCrop: true,
-    employeeFilter: options?.employeeFilter,
-  });
-
-  const lines: string[] = [];
-  lines.push(`*📅 ${board.title.toUpperCase()}*`);
-  if (model.subtitle) {
-    lines.push(`_${model.subtitle}_`);
-  }
-  if (options?.employeeFilter && options.employeeFilter !== "all") {
-    lines.push(`👤 *Filtre :* ${options.employeeFilter === "unassigned" ? "Non assigné" : options.employeeFilter}`);
-  }
-  lines.push("━━━━━━━━━━━━━━━━━━━━");
-
-  let totalMinutes = 0;
-  let totalEvents = 0;
-
-  if (model.month) {
-    for (const cell of model.month.cells) {
-      if (cell.dayNumber !== null && cell.events.length > 0) {
-        lines.push(`\n*${cell.dateString ?? `Jour ${cell.dayNumber}`} :*`);
-        for (const ev of cell.events) {
-          const startMin = ev.start.split(":").map(Number);
-          const endMin = ev.end.split(":").map(Number);
-          const diff = Math.max(0, (endMin[0] * 60 + endMin[1]) - (startMin[0] * 60 + startMin[1]));
-          totalMinutes += diff;
-          totalEvents++;
-          const dur = formatDuration(0, diff);
-          let item = `• ${ev.start} – ${ev.end} (${dur}) : *${ev.title}*`;
-          if (ev.teacher) item += `\n  👤 ${ev.teacher}`;
-          if (ev.location) item += `\n  📍 ${ev.location}`;
-          lines.push(item);
-        }
-      }
-    }
-  } else {
-    for (const col of model.columns) {
-      if (col.events.length === 0) continue;
-      lines.push(`\n*${col.label} ${col.date ? `(${col.date})` : ""} :*`);
-      for (const ev of col.events) {
-        totalMinutes += Math.max(0, ev.endMinutes - ev.startMinutes);
-        totalEvents++;
-        let item = `• ${ev.start} – ${ev.end} (${ev.formattedDuration}) : *${ev.title}*`;
-        if (ev.teacher) item += `\n  👤 ${ev.teacher}`;
-        if (ev.location) item += `\n  📍 ${ev.location}`;
-        lines.push(item);
-      }
-    }
-  }
-
-  lines.push("\n━━━━━━━━━━━━━━━━━━━━");
-  lines.push(`⏱ *Total :* ${formatDuration(0, totalMinutes)} (${totalEvents} créneau${totalEvents > 1 ? "x" : ""})`);
-
-  if (model.employeesSummary && model.employeesSummary.length > 0) {
-    lines.push("\n👥 *Récapitulatif par employé :*");
-    for (const emp of model.employeesSummary) {
-      lines.push(`• ${emp.name} : ${emp.formattedHours} (${emp.count} créneau${emp.count > 1 ? "x" : ""})`);
-    }
-  }
-
-  lines.push("\n_Partagé via PlaniLux_");
-  return lines.join("\n");
-}
-
-export function openWhatsAppShare(board: PlannerBoard, employeeFilter?: string) {
-  const text = generateWhatsAppSummary(board, { employeeFilter });
-  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-export async function shareScheduleNative(
-  node: HTMLElement,
-  board: PlannerBoard,
-  options: ExportOptions
-): Promise<boolean> {
-  const { toBlob } = await import("html-to-image");
-
-  await document.fonts.ready;
-
-  const target = TARGET_WALLPAPER[options.format as "phone" | "desktop"];
-  const pixelRatio = target ? Math.max(1, target.w / (node.offsetWidth || 1)) : 2.5;
-
-  const blob = await toBlob(node, {
-    cacheBust: true,
-    pixelRatio,
-    backgroundColor: "#ffffff",
-  });
-
-  if (!blob) throw new Error("Impossible de générer l'image");
-
-  const fileName = formatFileName(board.title, options.format, options.format === "phone" ? "portrait" : "landscape", "png");
-  const file = new File([blob], fileName, { type: "image/png" });
-
-  if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      title: board.title,
-      text: `Planning ${board.title} partagé avec PlaniLux`,
-      files: [file],
-    });
-    return true;
-  }
-
-  // Fallback si partage natif de fichier non supporté
-  const link = document.createElement("a");
-  link.download = fileName;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  return false;
 }
 
 export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
@@ -185,8 +65,8 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = isWallpaper ? 7 : 12;
   const top = options.showTitle ? (isWallpaper ? 20 : 28) : (isWallpaper ? 12 : 16);
-  const bottom = pageHeight - margin - (options.showSignatureLine ? 14 : 6);
-  const gridHeight = bottom - top;
+  const bottom = pageHeight - margin;
+  const gridHeight = bottom - top - 6;
 
   const font = options.font === "Serif" ? "times" : options.font === "Mono" ? "courier" : "helvetica";
   doc.setFont(font, "normal");
@@ -222,9 +102,9 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
     doc.text("PlaniLux", pageWidth - margin, isWallpaper ? 11 : 16, { align: "right" });
   }
 
-  // Rendu Calendrier Mensuel
+  // Rendu Calendrier Mensuel (si board.kind === "monthly")
   if (model.month) {
-    const { weekdays, cells } = model.month;
+    const { monthLabel, weekdays, cells } = model.month;
     const colCount = 7;
     const rowCount = cells.length / 7;
     const gap = 1;
@@ -232,6 +112,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
     const headerH = 6;
     const rowH = (gridHeight - headerH - gap * (rowCount - 1)) / rowCount;
 
+    // En-tête des jours de la semaine
     for (let c = 0; c < colCount; c++) {
       const x = margin + c * (colW + gap);
       doc.setFillColor(246, 244, 250);
@@ -242,6 +123,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
       doc.text(weekdays[c].slice(0, 3).toUpperCase(), x + colW / 2, top + 4, { align: "center" });
     }
 
+    // Cellules du mois
     for (let r = 0; r < rowCount; r++) {
       for (let c = 0; c < colCount; c++) {
         const cell = cells[r * 7 + c];
@@ -254,150 +136,140 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
           continue;
         }
 
-        doc.setFillColor(255, 255, 255);
-        doc.setDrawColor(230, 226, 240);
-        doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
+        doc.setFillColor(cell.isToday ? 245 : 255, cell.isToday ? 242 : 255, cell.isToday ? 252 : 255);
+        doc.setDrawColor(235, 232, 240);
+        doc.setLineWidth(0.15);
+        doc.rect(x, y, colW, rowH, "FD");
 
+        // Numéro du jour
         doc.setFont(font, "bold");
-        doc.setFontSize(isWallpaper ? 6 : 8);
-        doc.setTextColor(cell.isToday ? 140 : 40, cell.isToday ? 125 : 35, cell.isToday ? 200 : 50);
-        doc.text(String(cell.dayNumber), x + 2, y + 4);
+        doc.setFontSize(isWallpaper ? 5 : 7);
+        doc.setTextColor(cell.isToday ? 110 : 80, cell.isToday ? 80 : 75, cell.isToday ? 170 : 90);
+        doc.text(String(cell.dayNumber), x + colW - 2, y + 3.5, { align: "right" });
 
-        let chipY = y + 6;
-        for (const ev of cell.events.slice(0, 2)) {
-          if (chipY + 4 > y + rowH) break;
-          const [cr, cg, cb] = splitColor(ev.color);
+        // Événements dans la cellule
+        let eventY = y + 5;
+        const maxEvents = rowH > 22 ? 3 : 2;
+        const visibleEvents = cell.events.slice(0, maxEvents);
+        for (const ev of visibleEvents) {
+          const [cr, cg, cb] = options.whiteBackground ? [245, 244, 248] : splitColor(ev.color);
           doc.setFillColor(cr, cg, cb);
-          doc.roundedRect(x + 1, chipY, colW - 2, 4, 0.8, 0.8, "F");
+          doc.roundedRect(x + 1, eventY, colW - 2, 3.8, 0.5, 0.5, "F");
 
-          const textColor = getContrastTextColor(ev.color);
-          const [tr, tg, tb] = splitColor(textColor);
-          doc.setTextColor(tr, tg, tb);
           doc.setFont(font, "bold");
-          doc.setFontSize(5.5);
-          doc.text(ev.title.slice(0, 14), x + 2, chipY + 3);
-          chipY += 4.5;
+          doc.setFontSize(isWallpaper ? 4 : 5.5);
+          doc.setTextColor(40, 38, 48);
+          const timeText = options.showTimes ? `${ev.start} ` : "";
+          const fullText = `${timeText}${ev.title}`;
+          const truncated = splitTextLines(doc, fullText, colW - 4)[0] || "";
+          doc.text(truncated, x + 2, eventY + 2.7);
+
+          eventY += 4.3;
+        }
+
+        if (cell.events.length > maxEvents) {
+          doc.setFont(font, "normal");
+          doc.setFontSize(4.5);
+          doc.setTextColor(140, 130, 155);
+          doc.text(`+${cell.events.length - maxEvents}`, x + 2, eventY + 2.5);
         }
       }
     }
   } else {
-    // Rendu Semaine / Grille
-    const { hourStart, hourEnd, hours, columns } = model;
-    const hourCount = Math.max(1, hourEnd - hourStart);
-    const colCount = columns.length;
-    const timeColWidth = isWallpaper ? 9 : 14;
+    // Rendu Grille Hebdomadaire
+    const timeColWidth = isWallpaper ? 7 : 12;
+    const colCount = model.columns.length;
     const gap = 1.2;
-    const availableWidth = pageWidth - margin * 2 - timeColWidth - gap * colCount;
-    const colWidth = availableWidth / colCount;
-    const headerHeight = 7;
-    const trackHeight = gridHeight - headerHeight - gap;
-    const hourHeight = trackHeight / hourCount;
+    const totalDaysWidth = pageWidth - margin * 2 - timeColWidth - gap * colCount;
+    const dayWidth = totalDaysWidth / colCount;
 
-    // Facteur d'échelle typographique adaptatif
-    const scaleFactor = Math.max(1, Math.min(1.8, 14 / hourCount));
+    const { hourStart, hourEnd, hours } = model;
+    const totalHours = hourEnd - hourStart;
+    const hourStep = gridHeight / totalHours;
 
-    // En-tête des colonnes (jours)
-    for (let c = 0; c < colCount; c++) {
-      const col = columns[c];
-      const x = margin + timeColWidth + gap + c * (colWidth + gap);
-      doc.setFillColor(col.isToday ? 236 : 246, col.isToday ? 232 : 244, col.isToday ? 250 : 250);
-      doc.roundedRect(x, top, colWidth, headerHeight, 1, 1, "F");
-
-      doc.setFont(font, "bold");
-      doc.setFontSize(isWallpaper ? 6.5 : 8);
-      doc.setTextColor(col.isToday ? 120 : 70, col.isToday ? 100 : 65, col.isToday ? 190 : 85);
-      const dayLabel = `${col.shortLabel}${options.showDates && col.date ? ` ${col.date}` : ""}`;
-      doc.text(dayLabel, x + colWidth / 2, top + 4.5, { align: "center" });
-    }
-
-    // Échelle des heures
-    for (let h = hourStart; h <= hourEnd; h++) {
-      const y = top + headerHeight + gap + (h - hourStart) * hourHeight;
+    // Colonne horaire à gauche (Point E-2a)
+    for (let i = 0; i < hours.length; i++) {
+      const h = hours[i];
+      const y = top + i * hourStep;
       doc.setFont(font, "normal");
-      doc.setFontSize(isWallpaper ? 5.5 : 7);
-      doc.setTextColor(140, 136, 150);
-      doc.text(`${String(h).padStart(2, "0")}h`, margin + timeColWidth - 2, y + 2.5, { align: "right" });
+      doc.setFontSize(isWallpaper ? 5 : 6.8);
+      doc.setTextColor(130, 126, 140);
+      doc.text(`${String(h).padStart(2, "0")}:00`, margin + timeColWidth - 1.5, y + 1.2, { align: "right" });
 
-      if (h < hourEnd) {
-        doc.setDrawColor(240, 238, 245);
-        doc.setLineWidth(0.2);
+      if (i < hours.length) {
+        doc.setDrawColor(235, 232, 240);
+        doc.setLineWidth(0.12);
         doc.line(margin + timeColWidth, y, pageWidth - margin, y);
       }
     }
 
-    // Événements
+    // Colonnes des jours
     for (let c = 0; c < colCount; c++) {
-      const col = columns[c];
-      const colX = margin + timeColWidth + gap + c * (colWidth + gap);
+      const col = model.columns[c];
+      const x = margin + timeColWidth + gap + c * (dayWidth + gap);
 
-      for (const ev of col.events) {
-        const evWidth = (colWidth - 1) / ev.totalCols;
-        const x = colX + ev.col * evWidth + 0.5;
-        const boundedStart = Math.max(hourStart * 60, Math.min(hourEnd * 60, ev.startMinutes));
-        const boundedEnd = Math.max(hourStart * 60, Math.min(hourEnd * 60, ev.endMinutes));
-        const y = top + headerHeight + gap + ((boundedStart - hourStart * 60) / (hourCount * 60)) * trackHeight;
-        const h = Math.max(5, ((boundedEnd - boundedStart) / (hourCount * 60)) * trackHeight);
+      // Fond de colonne
+      doc.setFillColor(252, 251, 254);
+      doc.roundedRect(x, top, dayWidth, gridHeight, 1, 1, "F");
 
-        const [r, g, b] = splitColor(options.whiteBackground ? "#ffffff" : ev.color);
+      // En-tête de jour (Point E-2b)
+      doc.setFont(font, "bold");
+      doc.setFontSize(isWallpaper ? 5.5 : 7.5);
+      doc.setTextColor(70, 65, 80);
+      const headLabel = `${col.shortLabel} ${options.showDates && col.date ? col.date : ""}`;
+      doc.text(headLabel, x + dayWidth / 2, top - 2.5, { align: "center" });
+
+      // Événements placés avec gestion des chevauchements (Point E-2c)
+      for (const event of col.events) {
+        const eventTop = top + (event.topPercent / 100) * gridHeight;
+        const eventH = Math.max(3.2, (event.heightPercent / 100) * gridHeight);
+
+        const subWidth = (dayWidth - 0.8) / event.totalCols;
+        const subLeft = x + 0.4 + event.col * subWidth;
+
+        const [r, g, b] = options.whiteBackground ? [255, 255, 255] : splitColor(event.color);
         doc.setFillColor(r, g, b);
-        doc.setDrawColor(210, 205, 225);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(x, y, evWidth - 1, h, 1.2, 1.2, "FD");
+        doc.setDrawColor(180, 175, 195);
+        doc.setLineWidth(0.15);
+        doc.roundedRect(subLeft, eventTop, subWidth - 0.6, eventH, 0.8, 0.8, "FD");
 
-        // Centrage géométrique vertical et horizontal strict
-        const centerY = y + h / 2;
-        const centerX = x + (evWidth - 1) / 2;
-        const maxTextW = evWidth - 3;
+        // Bande de couleur gauche
+        const [br, bg, bb] = splitColor(event.color);
+        doc.setFillColor(br, bg, bb);
+        doc.rect(subLeft, eventTop, 1, eventH, "F");
 
-        const textColor = getContrastTextColor(options.whiteBackground ? "#ffffff" : ev.color);
-        const [tr, tg, tb] = splitColor(textColor);
-        doc.setTextColor(tr, tg, tb);
+        // Texte du cours (Points E-2d, E-2e, E-2f)
+        doc.setFont(font, "bold");
+        doc.setFontSize(isWallpaper ? 4.5 : Math.max(6.8, Math.min(8.5, subWidth * 0.45)));
+        doc.setTextColor(30, 28, 38);
 
-        const titleSize = Math.min(11, Math.max(6.5, 7.5 * scaleFactor));
-        const subSize = Math.min(9, Math.max(5.5, 6 * scaleFactor));
+        const textMaxW = subWidth - 2.5;
+        const titleLines = splitTextLines(doc, event.title, textMaxW);
+        doc.text(titleLines[0] || "", subLeft + 1.8, eventTop + 2.6);
 
-        if (h > 12) {
-          // Ligne 1 : Horaires + Durée
-          if (options.showTimes) {
-            doc.setFont(font, "normal");
-            doc.setFontSize(subSize);
-            const timeStr = `${ev.start} – ${ev.end} (${ev.formattedDuration})`;
-            doc.text(timeStr, centerX, centerY - 3, { align: "center" });
-          }
+        if (options.showTimes && eventH > 6) {
+          doc.setFont(font, "normal");
+          doc.setFontSize(isWallpaper ? 3.8 : 5.8);
+          doc.setTextColor(85, 80, 95);
+          doc.text(`${event.start}–${event.end}`, subLeft + 1.8, eventTop + 5.2);
+        }
 
-          // Ligne 2 : Titre principal
-          doc.setFont(font, "bold");
-          doc.setFontSize(titleSize);
-          const titleLines = splitTextLines(doc, ev.title, maxTextW);
-          doc.text(titleLines[0], centerX, options.showTimes ? centerY + 1.5 : centerY, { align: "center" });
-
-          // Ligne 3 : Employé / Intervenant ou Salle
-          if (h > 18 && (ev.teacher || ev.location)) {
-            doc.setFont(font, "normal");
-            doc.setFontSize(subSize);
-            const meta = [ev.teacher, ev.location].filter(Boolean).join(" · ");
-            const metaLines = splitTextLines(doc, meta, maxTextW);
-            doc.text(metaLines[0], centerX, centerY + 5.5, { align: "center" });
-          }
-        } else {
-          // Case courte : titre centré
-          doc.setFont(font, "bold");
-          doc.setFontSize(subSize);
-          doc.text(ev.title.slice(0, 18), centerX, centerY + 1, { align: "center" });
+        if (event.location && eventH > 10) {
+          doc.setFont(font, "normal");
+          doc.setFontSize(isWallpaper ? 3.5 : 5.2);
+          doc.setTextColor(115, 110, 125);
+          const locLine = splitTextLines(doc, event.location, textMaxW)[0] || "";
+          doc.text(locLine, subLeft + 1.8, eventTop + 7.8);
         }
       }
     }
   }
 
-  // Ligne de signature / validation si demandée
-  if (options.showSignatureLine) {
-    const sigY = pageHeight - margin - 2;
-    doc.setFont(font, "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(80, 75, 95);
-    doc.text("Signature / Validation : ____________________________", margin, sigY);
-    doc.text("Date : __________________", pageWidth - margin - 50, sigY);
-  }
+  // Pied de page
+  doc.setFont(font, "normal");
+  doc.setFontSize(isWallpaper ? 4.5 : 6.5);
+  doc.setTextColor(140, 136, 150);
+  doc.text("PlaniLux · Vos journées, composées avec soin.", margin, pageHeight - margin + 3.5);
 
   const fileName = formatFileName(board.title, options.format, options.orientation, "pdf");
   doc.save(fileName);
@@ -406,6 +278,8 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 export async function downloadDocx(board: PlannerBoard, options: ExportOptions) {
   const {
     Document,
+    HeadingLevel,
+    PageOrientation,
     Packer,
     Paragraph,
     Table,
@@ -414,80 +288,124 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
     TextRun,
     WidthType,
     AlignmentType,
-    PageOrientation,
+    BorderStyle,
     Footer,
     PageNumber,
   } = await import("docx");
 
   const model = buildSheetModel(board, options);
-  const isPortrait = options.format === "phone" || (options.format !== "desktop" && options.orientation === "portrait");
+  const isPortrait = options.orientation === "portrait";
+
   const fontName = options.font === "Serif" ? "Georgia" : options.font === "Mono" ? "Consolas" : "Arial";
 
   const children: (Paragraph | Table)[] = [];
 
+  // En-tête
   if (options.showTitle) {
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: board.title, bold: true, size: 36, color: "1A1828" })],
-        spacing: { after: 100 },
+        text: board.title,
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
       })
     );
-    if (options.showDates) {
-      children.push(
-        new Paragraph({
-          children: [new TextRun({ text: model.subtitle.toUpperCase(), size: 18, color: "777777" })],
-          spacing: { after: 200 },
-        })
-      );
-    }
+  }
+
+  if (options.showDates) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: model.subtitle,
+            italics: true,
+            color: "666666",
+            size: 20,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 240 },
+      })
+    );
   }
 
   if (model.month) {
+    // Tableau Word Mensuel (Point E-5g)
+    const { weekdays, cells } = model.month;
     const headerRow = new TableRow({
-      children: model.month.weekdays.map(
+      tableHeader: true,
+      children: weekdays.map(
         (day) =>
           new TableCell({
             width: { size: 100 / 7, type: WidthType.PERCENTAGE },
-            shading: { fill: "F0EEF5" },
-            children: [new Paragraph({ children: [new TextRun({ text: day.slice(0, 3).toUpperCase(), bold: true, size: 16 })], alignment: AlignmentType.CENTER })],
+            shading: { fill: "F3F1F8" },
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: day, bold: true, size: 18 })],
+                alignment: AlignmentType.CENTER,
+              }),
+            ],
           })
       ),
     });
 
     const rows: TableRow[] = [headerRow];
-    const totalWeeks = model.month.cells.length / 7;
-    for (let w = 0; w < totalWeeks; w++) {
-      const cells: TableCell[] = [];
-      for (let d = 0; d < 7; d++) {
-        const cell = model.month.cells[w * 7 + d];
-        const paras: Paragraph[] = [];
-        if (cell.dayNumber !== null) {
-          paras.push(new Paragraph({ children: [new TextRun({ text: String(cell.dayNumber), bold: true, size: 18 })] }));
-          for (const ev of cell.events.slice(0, 2)) {
+    const rowCount = cells.length / 7;
+
+    for (let r = 0; r < rowCount; r++) {
+      const cellCols: TableCell[] = [];
+      for (let c = 0; c < 7; c++) {
+        const cell = cells[r * 7 + c];
+        if (cell.dayNumber === null) {
+          cellCols.push(
+            new TableCell({
+              width: { size: 100 / 7, type: WidthType.PERCENTAGE },
+              shading: { fill: "FAF9FC" },
+              children: [new Paragraph({})],
+            })
+          );
+        } else {
+          const paras: Paragraph[] = [
+            new Paragraph({
+              children: [new TextRun({ text: String(cell.dayNumber), bold: true, size: 18, color: "555555" })],
+              alignment: AlignmentType.RIGHT,
+              spacing: { after: 40 },
+            }),
+          ];
+
+          for (const ev of cell.events) {
             paras.push(
               new Paragraph({
                 children: [
-                  new TextRun({ text: `• ${ev.title}`, size: 14 }),
-                  ...(options.showTimes ? [new TextRun({ text: ` (${ev.start})`, size: 12, color: "666666" })] : []),
+                  ...(options.showTimes ? [new TextRun({ text: `${ev.start} `, size: 14, bold: true })] : []),
+                  new TextRun({ text: ev.title, size: 15 }),
                 ],
+                spacing: { after: 30 },
               })
             );
           }
+
+          cellCols.push(
+            new TableCell({
+              width: { size: 100 / 7, type: WidthType.PERCENTAGE },
+              children: paras,
+            })
+          );
         }
-        cells.push(
-          new TableCell({
-            width: { size: 100 / 7, type: WidthType.PERCENTAGE },
-            children: paras.length ? paras : [new Paragraph({})],
-          })
-        );
       }
-      rows.push(new TableRow({ children: cells }));
+      rows.push(new TableRow({ children: cellCols }));
     }
 
-    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+    children.push(
+      new Table({
+        rows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+      })
+    );
   } else {
-    // Mode semaine
+    // Tableau Word Hebdomadaire structuré (Point E-5d)
     const headerRow = new TableRow({
+      tableHeader: true,
       children: [
         new TableCell({
           width: { size: 12, type: WidthType.PERCENTAGE },
@@ -513,8 +431,9 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
       ],
     });
 
+    // Lignes par tranche horaire
     const rows: TableRow[] = [headerRow];
-    const { hourStart, hourEnd } = model;
+    const { hourStart, hourEnd, hours } = model;
 
     for (let h = hourStart; h < hourEnd; h++) {
       const hStartMin = h * 60;
@@ -534,12 +453,12 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
 
         const paras: Paragraph[] = [];
         for (const ev of overlapping) {
-          const detail = [ev.teacher, ev.location].filter(Boolean).join(" · ");
+          const detail = [ev.location, ev.teacher].filter(Boolean).join(" · ");
           paras.push(
             new Paragraph({
               children: [
                 new TextRun({ text: `${ev.title} `, bold: true, size: 16 }),
-                ...(options.showTimes ? [new TextRun({ text: `(${ev.start}–${ev.end} · ${ev.formattedDuration})`, size: 14, color: "777777" })] : []),
+                ...(options.showTimes ? [new TextRun({ text: `(${ev.start}–${ev.end})`, size: 14, color: "777777" })] : []),
                 ...(detail ? [new TextRun({ text: ` · ${detail}`, size: 14, italics: true, color: "888888" })] : []),
               ],
               spacing: { after: 40 },
@@ -562,51 +481,10 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
       rows.push(new TableRow({ children: dayCells }));
     }
 
-    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
-  }
-
-  // Tableau récapitulatif des heures par employé si demandé
-  if (options.showHoursSummary && model.employeesSummary && model.employeesSummary.length > 0) {
     children.push(
-      new Paragraph({
-        children: [new TextRun({ text: "Récapitulatif des heures par employé", bold: true, size: 24 })],
-        spacing: { before: 300, after: 120 },
-      })
-    );
-
-    const summaryHeader = new TableRow({
-      children: [
-        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, shading: { fill: "EFEBF5" }, children: [new Paragraph({ children: [new TextRun({ text: "Employé / Intervenant", bold: true, size: 16 })] })] }),
-        new TableCell({ width: { size: 25, type: WidthType.PERCENTAGE }, shading: { fill: "EFEBF5" }, children: [new Paragraph({ children: [new TextRun({ text: "Créneaux", bold: true, size: 16 })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ width: { size: 25, type: WidthType.PERCENTAGE }, shading: { fill: "EFEBF5" }, children: [new Paragraph({ children: [new TextRun({ text: "Total Heures", bold: true, size: 16 })], alignment: AlignmentType.RIGHT })] }),
-      ],
-    });
-
-    const summaryRows = [
-      summaryHeader,
-      ...model.employeesSummary.map(
-        (emp) =>
-          new TableRow({
-            children: [
-              new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: emp.name, size: 16 })] })] }),
-              new TableCell({ width: { size: 25, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: String(emp.count), size: 16 })], alignment: AlignmentType.CENTER })] }),
-              new TableCell({ width: { size: 25, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: emp.formattedHours, bold: true, size: 16 })], alignment: AlignmentType.RIGHT })] }),
-            ],
-          })
-      ),
-    ];
-
-    children.push(new Table({ rows: summaryRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
-  }
-
-  // Signature / Validation
-  if (options.showSignatureLine) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: "Signature / Validation : ____________________________       Date : __________________", size: 16 }),
-        ],
-        spacing: { before: 400 },
+      new Table({
+        rows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
       })
     );
   }
@@ -628,7 +506,12 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
             size: {
               orientation: isPortrait ? PageOrientation.PORTRAIT : PageOrientation.LANDSCAPE,
             },
-            margin: { top: 720, bottom: 720, left: 720, right: 720 },
+            margin: {
+              top: 720,
+              bottom: 720,
+              left: 720,
+              right: 720,
+            },
           },
         },
         footers: {
@@ -660,7 +543,7 @@ export async function downloadPng(node: HTMLElement, board: PlannerBoard, format
   await document.fonts.ready;
 
   const target = TARGET_WALLPAPER[format as "phone" | "desktop"];
-  const pixelRatio = target ? Math.max(1, target.w / (node.offsetWidth || 1)) : 2.5;
+  const pixelRatio = target ? Math.max(1, target.w / (node.offsetWidth || 1)) : 3;
 
   const dataUrl = await toPng(node, {
     cacheBust: true,
