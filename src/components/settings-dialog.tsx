@@ -126,74 +126,93 @@ export function SettingsDialog({
   };
 
   return (
-    <div className="dialog-backdrop" onClick={onClose} role="presentation">
+    <div
+      className="modal-scrim"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-dialog-title"
+    >
       <div
-        className="dialog-card settings-dialog-card"
+        className="settings-modal"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Paramètres de l’application"
       >
-        <div className="dialog-header">
-          <div className="settings-title-group">
-            <span className="settings-header-icon"><Settings2 size={18} /></span>
+        <div className="settings-header">
+          <div className="settings-title-wrap">
+            <span className="settings-icon-mark"><Settings2 size={18} /></span>
             <div>
-              <h3>Paramètres</h3>
+              <h2 id="settings-dialog-title">Paramètres</h2>
               <p>Personnalisez votre confort visuel et votre espace.</p>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+          <button className="icon-button modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
 
         <nav className="settings-tabs" aria-label="Sections des paramètres">
           <button
-            className={`settings-tab-btn ${activeTab === "appearance" ? "is-active" : ""}`}
+            type="button"
+            className={`settings-tab ${activeTab === "appearance" ? "is-active" : ""}`}
             onClick={() => setActiveTab("appearance")}
           >
             <SunMedium size={15} /> Apparence
           </button>
           <button
-            className={`settings-tab-btn ${activeTab === "profile" ? "is-active" : ""}`}
+            type="button"
+            className={`settings-tab ${activeTab === "profile" ? "is-active" : ""}`}
             onClick={() => setActiveTab("profile")}
           >
             <UserRound size={15} /> Profil & Espace
           </button>
           <button
-            className={`settings-tab-btn ${activeTab === "data" ? "is-active" : ""}`}
+            type="button"
+            className={`settings-tab ${activeTab === "data" ? "is-active" : ""}`}
             onClick={() => setActiveTab("data")}
           >
             <Download size={15} /> Données & Sécurité
           </button>
         </nav>
 
-        <div className="dialog-body settings-body">
+        <div className="settings-body">
           {activeTab === "appearance" && (
             <div className="settings-section">
               <div className="setting-card">
-                <div className="setting-card-header">
-                  <div>
-                    <strong>Taille des écrits ({fontScale} %)</strong>
-                    <span>Ajustez l’échelle de l’ensemble des textes pour un confort de lecture optimal.</span>
+                <div className="setting-card-head">
+                  <div className="setting-card-title">
+                    <span className="setting-tag"><Type size={15} /></span>
+                    <div>
+                      <strong>Taille des écrits ({fontScale} %)</strong>
+                      <span>Ajustez l’échelle de l’ensemble des textes pour un confort de lecture optimal.</span>
+                    </div>
                   </div>
-                  <span className="setting-badge">{fontScale}%</span>
+                  <div className="font-stepper">
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={() => onChangeFontScale(Math.max(75, fontScale - 5))}
+                      disabled={fontScale <= 75}
+                      aria-label="Diminuer la taille"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="font-scale-number">{fontScale} %</span>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={() => onChangeFontScale(Math.min(150, fontScale + 5))}
+                      disabled={fontScale >= 150}
+                      aria-label="Augmenter la taille"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div className="slider-control">
-                  <span className="slider-label">75 %</span>
-                  <input
-                    type="range"
-                    min="75"
-                    max="150"
-                    step="5"
-                    value={fontScale}
-                    onChange={(e) => onChangeFontScale(Number(e.target.value))}
-                    aria-label="Taille de police globale"
-                  />
-                  <span className="slider-label">150 %</span>
-                </div>
-                <div className="preset-chips">
+
+                <div className="font-presets-row">
                   {FONT_PRESETS.map((preset) => (
                     <button
                       key={preset.value}
-                      className={`preset-chip ${fontScale === preset.value ? "is-active" : ""}`}
+                      type="button"
+                      className={`font-preset-btn ${fontScale === preset.value ? "is-selected" : ""}`}
                       onClick={() => onChangeFontScale(preset.value)}
                     >
                       <strong>{preset.label}</strong>
@@ -205,31 +224,43 @@ export function SettingsDialog({
 
               {onChangeBrightness && (
                 <div className="setting-card">
-                  <div className="setting-card-header">
-                    <div>
-                      <strong>Luminosité de l’espace ({brightness} %)</strong>
-                      <span>Atténuez ou rehaussez l’intensité lumineuse pour reposer vos yeux.</span>
+                  <div className="setting-card-head">
+                    <div className="setting-card-title">
+                      <span className="setting-tag"><SunMedium size={15} /></span>
+                      <div>
+                        <strong>Luminosité de l’espace ({brightness} %)</strong>
+                        <span>Atténuez ou rehaussez l’intensité lumineuse pour reposer vos yeux.</span>
+                      </div>
                     </div>
-                    <span className="setting-badge">{brightness}%</span>
+                    <div className="font-stepper">
+                      <button
+                        type="button"
+                        className="stepper-btn"
+                        onClick={() => onChangeBrightness(Math.max(50, brightness - 5))}
+                        disabled={brightness <= 50}
+                        aria-label="Diminuer la luminosité"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <span className="font-scale-number">{brightness} %</span>
+                      <button
+                        type="button"
+                        className="stepper-btn"
+                        onClick={() => onChangeBrightness(Math.min(150, brightness + 5))}
+                        disabled={brightness >= 150}
+                        aria-label="Augmenter la luminosité"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="slider-control">
-                    <span className="slider-label">50 %</span>
-                    <input
-                      type="range"
-                      min="50"
-                      max="150"
-                      step="5"
-                      value={brightness}
-                      onChange={(e) => onChangeBrightness(Number(e.target.value))}
-                      aria-label="Luminosité globale"
-                    />
-                    <span className="slider-label">150 %</span>
-                  </div>
-                  <div className="preset-chips">
+
+                  <div className="font-presets-row">
                     {BRIGHTNESS_PRESETS.map((preset) => (
                       <button
                         key={preset.value}
-                        className={`preset-chip ${brightness === preset.value ? "is-active" : ""}`}
+                        type="button"
+                        className={`font-preset-btn ${brightness === preset.value ? "is-selected" : ""}`}
                         onClick={() => onChangeBrightness(preset.value)}
                       >
                         <strong>{preset.label}</strong>
@@ -241,23 +272,28 @@ export function SettingsDialog({
               )}
 
               <div className="setting-card">
-                <div className="theme-selection-row">
-                  <div>
-                    <strong>Mode d’affichage</strong>
-                    <span>Basculez entre le thème clair et le thème sombre.</span>
+                <div className="setting-card-head">
+                  <div className="setting-card-title">
+                    <span className="setting-tag"><Sparkles size={15} /></span>
+                    <div>
+                      <strong>Mode d’affichage</strong>
+                      <span>Basculez entre le thème clair et le thème sombre.</span>
+                    </div>
                   </div>
-                  <div className="theme-toggle-pills">
+                  <div className="theme-switch-group">
                     <button
+                      type="button"
                       className={`theme-pill ${!dark ? "is-active" : ""}`}
                       onClick={() => { if (dark) onToggleDark(); }}
                     >
-                      <Sun size={14} /> Clair
+                      <Sun size={13} /> Clair
                     </button>
                     <button
+                      type="button"
                       className={`theme-pill ${dark ? "is-active" : ""}`}
                       onClick={() => { if (!dark) onToggleDark(); }}
                     >
-                      <Moon size={14} /> Sombre
+                      <Moon size={13} /> Sombre
                     </button>
                   </div>
                 </div>
@@ -470,7 +506,7 @@ export function SettingsDialog({
           <span className="settings-autosave-note">
             <Check size={13} /> Les préférences d’affichage sont mémorisées sur cet appareil.
           </span>
-          <button className="button-primary" onClick={onClose}>Terminer</button>
+          <button type="button" className="button-primary" onClick={onClose}>Terminer</button>
         </div>
       </div>
     </div>

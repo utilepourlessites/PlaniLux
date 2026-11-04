@@ -158,7 +158,9 @@ html[data-theme="dark"] .sidebar-tip { border-color: #3d384a; background: #29263
 
 .main-panel { flex: 1; min-width: 0; min-height: 100vh; }
 .topbar { position: sticky; top: 0; z-index: 20; height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 0 36px; border-bottom: 1px solid var(--line); background: var(--surface); backdrop-filter: var(--glass-blur, blur(20px)); -webkit-backdrop-filter: var(--glass-blur, blur(20px)); box-shadow: 0 4px 20px rgba(10, 8, 20, 0.15); }
-.topbar-left, .topbar-actions, .breadcrumbs { display: flex; align-items: center; }
+.topbar-left { display: flex; align-items: center; min-width: 0; flex-shrink: 1; }
+.topbar-actions { display: flex; align-items: center; flex-shrink: 0; }
+.breadcrumbs { display: flex; align-items: center; min-width: 0; }
 .breadcrumbs { gap: 9px; color: var(--muted); font-size: 11px; }
 .breadcrumbs svg { color: var(--muted); opacity: 0.7; }
 .breadcrumbs strong { overflow: hidden; max-width: 300px; color: var(--ink); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
@@ -1960,4 +1962,34 @@ body {
   background: rgba(196, 91, 86, 0.08) !important;
   border-color: rgba(196, 91, 86, 0.3) !important;
 }
+
+/* Aliases de compatibilité pour fenêtres modales */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(10, 8, 22, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dialog-card {
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-card);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--shadow-card);
+}
+
 
