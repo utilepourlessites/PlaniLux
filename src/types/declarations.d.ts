@@ -49,10 +49,13 @@ declare module 'lucide-react' {
   export const Palette: LucideIcon;
   export const Plus: LucideIcon;
   export const Printer: LucideIcon;
+  export const Radio: LucideIcon;
+  export const Redo2: LucideIcon;
   export const RefreshCw: LucideIcon;
   export const RotateCcw: LucideIcon;
   export const Search: LucideIcon;
   export const Settings2: LucideIcon;
+  export const Share2: LucideIcon;
   export const Shield: LucideIcon;
   export const SlidersHorizontal: LucideIcon;
   export const Smartphone: LucideIcon;
@@ -61,6 +64,7 @@ declare module 'lucide-react' {
   export const Sun: LucideIcon;
   export const SunMedium: LucideIcon;
   export const Trash2: LucideIcon;
+  export const TriangleAlert: LucideIcon;
   export const Type: LucideIcon;
   export const Undo2: LucideIcon;
   export const Upload: LucideIcon;

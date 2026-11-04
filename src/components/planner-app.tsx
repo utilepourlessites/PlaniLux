@@ -8,10 +8,20 @@ import {
 } from "lucide-react";
 import { PlannerSidebar, type PlannerView } from "@/components/planner-sidebar";
 import { Overview } from "@/components/overview";
+import dynamic from "next/dynamic";
 import { BoardLibrary } from "@/components/board-library";
 import { ScheduleEditor } from "@/components/schedule-editor";
 import { TemplateDialog } from "@/components/template-dialog";
-import { ExportStudio } from "@/components/export-studio";
+const ExportStudio = dynamic(
+  () => import("@/components/export-studio").then((mod) => mod.ExportStudio),
+  {
+    loading: () => (
+      <div className="app-loading">
+        <p>Chargement du Studio d’export…</p>
+      </div>
+    ),
+  }
+);
 import { SettingsDialog } from "@/components/settings-dialog";
 import { HelpDialog } from "@/components/help-dialog";
 import { makeTemplate } from "@/lib/templates";

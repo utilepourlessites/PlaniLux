@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowLeftRight, CalendarDays, ChevronLeft,
-  ChevronRight, Grid3X3, Plus, Printer, SlidersHorizontal,
-  Sparkles, ZoomIn, ZoomOut, Check,
+  ChevronRight, Grid3X3, Plus, Printer, Redo2, SlidersHorizontal,
+  Sparkles, TriangleAlert, Undo2, ZoomIn, ZoomOut, Check,
 } from "lucide-react";
 import { EventDialog } from "@/components/event-dialog";
 import { MonthlyPlanner } from "@/components/monthly-planner";
@@ -57,10 +57,63 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
   const [prevBoardMeta, setPrevBoardMeta] = useState({ id: board.id, title: board.title });
   const [titleDraft, setTitleDraft] = useState(board.title);
 
+  // Historique Undo / Redo (25 états)
+  const [past, setPast] = useState<ScheduleEvent[][]>([]);
+  const [future, setFuture] = useState<ScheduleEvent[][]>([]);
+
+  const pushHistory = useCallback((currentEvents: ScheduleEvent[]) => {
+    setPast((prev) => [...prev.slice(-25), currentEvents]);
+    setFuture([]);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    setPast((prev) => prev.slice(0, prev.length - 1));
+    setFuture((prev) => [board.events, ...prev]);
+    onBoardChange({ ...board, events: previous });
+    onToast("Action annulée");
+  }, [past, board, onBoardChange, onToast]);
+
+  const handleRedo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setFuture((prev) => prev.slice(1));
+    setPast((prev) => [...prev, board.events]);
+    onBoardChange({ ...board, events: next });
+    onToast("Action rétablie");
+  }, [future, board, onBoardChange, onToast]);
+
   if (prevBoardMeta.id !== board.id || prevBoardMeta.title !== board.title) {
     setPrevBoardMeta({ id: board.id, title: board.title });
     setTitleDraft(board.title);
   }
+
+  // Détection des chevauchements horaires (Collision Warning)
+  const conflictingEventIds = useMemo(() => {
+    const conflicts = new Set<string>();
+    const events = board.events;
+    for (let i = 0; i < events.length; i++) {
+      const a = events[i];
+      const aStart = minutesFromTime(a.start);
+      const aEnd = minutesFromTime(a.end);
+      for (let j = i + 1; j < events.length; j++) {
+        const b = events[j];
+        const sameDay = board.kind === "monthly"
+          ? Boolean(a.date && b.date && a.date === b.date)
+          : a.day === b.day;
+        if (sameDay) {
+          const bStart = minutesFromTime(b.start);
+          const bEnd = minutesFromTime(b.end);
+          if (Math.max(aStart, bStart) < Math.min(aEnd, bEnd)) {
+            conflicts.add(a.id);
+            conflicts.add(b.id);
+          }
+        }
+      }
+    }
+    return conflicts;
+  }, [board.events, board.kind]);
 
   // Point T-1 : Plage horaire dynamique calculée à partir des événements
   const { start: hourStart, end: hourEnd } = useMemo(
@@ -103,12 +156,20 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
   };
 
   const startNew = () => addEventAt(selectedDay, Math.max(hourStart, 9));
+
   const saveEvent = (event: ScheduleEvent) => {
     if (event.end <= event.start) {
       onToast("L’heure de fin doit être après celle du début");
       return;
     }
+    pushHistory(board.events);
     onEventSave(event);
+    setEditing(null);
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    pushHistory(board.events);
+    onEventDelete(id);
     setEditing(null);
   };
 
@@ -119,6 +180,57 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
       onBoardChange({ ...board, title: nextTitle });
     }
   };
+
+  // Raccourcis clavier universels (Ctrl+Z, Ctrl+Y, Ctrl+P, N, Échap)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || "").toLowerCase();
+      const isInput = activeTag === "input" || activeTag === "textarea" || activeTag === "select";
+
+      // Ctrl+Z ou Cmd+Z : Annuler / Rétablir
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (isInput) return;
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      // Ctrl+Y ou Cmd+Y : Rétablir
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        if (isInput) return;
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Ctrl+P ou Cmd+P : Ouvrir le Studio
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        onOpenStudio();
+        return;
+      }
+
+      // N : Nouveau créneau
+      if (!isInput && e.key.toLowerCase() === "n" && !e.ctrlKey && !e.metaKey && !e.altKey && !editing) {
+        e.preventDefault();
+        startNew();
+        return;
+      }
+
+      // Échap : Fermer la modale
+      if (e.key === "Escape" && editing) {
+        e.preventDefault();
+        setEditing(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo, onOpenStudio, editing]);
 
   if (board.kind === "monthly") {
     return (
@@ -140,16 +252,38 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
             <p>{board.events.length} note{board.events.length === 1 ? "" : "s"} dans ton mois <span>·</span> synchronisé automatiquement</p>
           </div>
           <div className="editor-heading-actions">
+            <button
+              type="button"
+              className="round-control"
+              onClick={handleUndo}
+              disabled={past.length === 0}
+              title="Annuler (Ctrl+Z)"
+              aria-label="Annuler"
+              style={{ opacity: past.length === 0 ? 0.35 : 1, cursor: past.length === 0 ? "not-allowed" : "pointer" }}
+            >
+              <Undo2 size={16} />
+            </button>
+            <button
+              type="button"
+              className="round-control"
+              onClick={handleRedo}
+              disabled={future.length === 0}
+              title="Rétablir (Ctrl+Y)"
+              aria-label="Rétablir"
+              style={{ opacity: future.length === 0 ? 0.35 : 1, cursor: future.length === 0 ? "not-allowed" : "pointer" }}
+            >
+              <Redo2 size={16} />
+            </button>
             <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
               <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
               {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
             </span>
-            <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export">
+            <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export (Ctrl+P)">
               <Printer size={15} /> Imprimer & Exporter
             </button>
           </div>
         </div>
-        <MonthlyPlanner board={board} onEventSave={onEventSave} onEventDelete={onEventDelete} onToast={onToast} />
+        <MonthlyPlanner board={board} onEventSave={saveEvent} onEventDelete={handleDeleteEvent} onToast={onToast} />
       </div>
     );
   }
@@ -173,14 +307,58 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
           <p>{board.events.length} créneau{board.events.length === 1 ? "" : "x"} organisé{board.events.length === 1 ? "" : "s"} avec soin <span>·</span> synchronisé automatiquement</p>
         </div>
         <div className="editor-heading-actions">
+          <button
+            type="button"
+            className="round-control"
+            onClick={handleUndo}
+            disabled={past.length === 0}
+            title="Annuler (Ctrl+Z)"
+            aria-label="Annuler"
+            style={{ opacity: past.length === 0 ? 0.35 : 1, cursor: past.length === 0 ? "not-allowed" : "pointer" }}
+          >
+            <Undo2 size={16} />
+          </button>
+          <button
+            type="button"
+            className="round-control"
+            onClick={handleRedo}
+            disabled={future.length === 0}
+            title="Rétablir (Ctrl+Y)"
+            aria-label="Rétablir"
+            style={{ opacity: future.length === 0 ? 0.35 : 1, cursor: future.length === 0 ? "not-allowed" : "pointer" }}
+          >
+            <Redo2 size={16} />
+          </button>
+
+          {conflictingEventIds.size > 0 && (
+            <span
+              className="conflict-badge"
+              title="Créneaux avec chevauchement horaire détecté"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 8px",
+                borderRadius: 999,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "#b45309",
+                background: "rgba(245, 158, 11, 0.15)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+              }}
+            >
+              <TriangleAlert size={13} /> {conflictingEventIds.size} conflit{conflictingEventIds.size > 1 ? "s" : ""}
+            </span>
+          )}
+
           <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
             <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
             {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
           </span>
-          <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export">
+          <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export (Ctrl+P)">
             <Printer size={15} /> Imprimer & Exporter
           </button>
-          <button className="button-primary editor-add-button" onClick={startNew}>
+          <button className="button-primary editor-add-button" onClick={startNew} title="Ajouter un créneau (Raccourci: N)">
             <Plus size={16} /> Ajouter un créneau
           </button>
         </div>
@@ -311,10 +489,11 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
                         const info = layoutMap.get(event.id) ?? { col: 0, totalCols: 1 };
                         const widthPct = 100 / info.totalCols;
                         const leftPct = info.col * widthPct;
+                        const isConflicting = conflictingEventIds.has(event.id);
                         return (
                           <button
                             key={event.id}
-                            className="timeline-event"
+                            className={`timeline-event ${isConflicting ? "has-conflict" : ""}`}
                             style={{
                               top,
                               height,
@@ -322,11 +501,15 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
                               width: `calc(${widthPct}% - 4px)`,
                               background: event.color,
                               "--event-accent": event.color,
+                              outline: isConflicting ? "2px solid #f59e0b" : undefined,
                             } as React.CSSProperties}
                             onClick={() => setEditing(event)}
-                            title={`${event.title} · ${event.start}–${event.end}`}
+                            title={`${event.title} · ${event.start}–${event.end}${isConflicting ? " (Attention : chevauchement horaire)" : ""}`}
                           >
-                            <strong>{event.title}</strong>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, width: "100%" }}>
+                              <strong>{event.title}</strong>
+                              {isConflicting && <TriangleAlert size={12} color="#b45309" />}
+                            </div>
                             <span>{event.start} – {event.end}</span>
                             {height > 47 && event.location && <small>{event.location}</small>}
                           </button>
@@ -392,18 +575,25 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
                                 matches.map((event) => {
                                   const eventStartHour = Math.floor(minutesFromTime(event.start) / 60);
                                   const isStart = eventStartHour === currentHour;
+                                  const isConflicting = conflictingEventIds.has(event.id);
                                   return (
                                     <button
                                       key={event.id}
                                       type="button"
-                                      className={`matrix-event-btn ${!isStart ? "matrix-event-continuation" : ""}`}
-                                      style={{ background: event.color }}
+                                      className={`matrix-event-btn ${!isStart ? "matrix-event-continuation" : ""} ${isConflicting ? "has-conflict" : ""}`}
+                                      style={{
+                                        background: event.color,
+                                        outline: isConflicting && isStart ? "2px solid #f59e0b" : undefined,
+                                      }}
                                       onClick={() => setEditing(event)}
-                                      title={`${event.title} · ${event.start}–${event.end}`}
+                                      title={`${event.title} · ${event.start}–${event.end}${isConflicting ? " (Attention : chevauchement horaire)" : ""}`}
                                     >
                                       {isStart ? (
                                         <>
-                                          <strong>{event.title}</strong>
+                                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, width: "100%" }}>
+                                            <strong>{event.title}</strong>
+                                            {isConflicting && <TriangleAlert size={10} color="#b45309" />}
+                                          </div>
                                           <small>{event.start}</small>
                                         </>
                                       ) : (
@@ -475,10 +665,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
           existingEvents={board.events}
           onClose={() => setEditing(null)}
           onSave={saveEvent}
-          onDelete={(id) => {
-            onEventDelete(id);
-            setEditing(null);
-          }}
+          onDelete={handleDeleteEvent}
         />
       )}
     </div>

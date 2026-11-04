@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronDown, Download, FileText, Image as ImageIcon, Printer,
-  RefreshCw, Sparkles, Type,
+  Radio, RefreshCw, Share2, Sparkles, Type,
 } from "lucide-react";
 import {
   downloadDocx,
@@ -344,6 +344,30 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
                       <small>Feuille {options.format.toUpperCase()}</small>
                     </span>
                     <ChevronDown size={14} className="export-action-arrow print-arrow" />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="export-format-button"
+                    disabled={Boolean(busy)}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/boards/${board.id}/calendar-token`);
+                        if (!res.ok) throw new Error();
+                        const data = await res.json();
+                        await navigator.clipboard.writeText(data.webcalUrl || data.httpUrl);
+                        onToast("Lien Webcal copié ! Prêt à être collé dans Google ou Apple Calendar");
+                      } catch {
+                        onToast("Impossible de générer le lien de calendrier");
+                      }
+                    }}
+                  >
+                    <span><Radio size={16} /></span>
+                    <span>
+                      <strong>Abonnement Webcal / iCal</strong>
+                      <small>Synchronisation Google & Apple Agenda</small>
+                    </span>
+                    <Share2 size={14} className="export-action-arrow" />
                   </button>
                 </>
               )}

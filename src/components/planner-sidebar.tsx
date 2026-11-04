@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
   BookOpen, CalendarDays, ChevronDown, CircleHelp, FolderOpen, Home,
-  LayoutGrid, LogOut, Plus, Settings2, Sparkles, Star, Trash2, X,
+  LayoutGrid, LogOut, Plus, Settings2, Smartphone, Sparkles, Star, Trash2, X,
 } from "lucide-react";
 import type { PlannerBoard } from "@/lib/planner-types";
 
@@ -42,6 +42,25 @@ export function PlannerSidebar({
   workspaceName = "Mon espace",
 }: Props) {
   const [showTip, setShowTip] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+    }
+  };
   const activeBoards = boards.filter((board) => !board.isDeleted);
   const trashCount = boards.filter((board) => board.isDeleted).length;
   const starredCount = activeBoards.filter((board) => board.favorite).length;
@@ -113,6 +132,11 @@ export function PlannerSidebar({
               <div><strong>Une semaine sereine</strong><p>Un petit pas à la fois. Tu es sur la bonne voie.</p></div>
               <button className="tip-dismiss" aria-label="Masquer le conseil" onClick={() => setShowTip(false)}><X size={13} /></button>
             </div>
+          )}
+          {deferredPrompt && (
+            <button className="nav-item muted-nav pwa-install-nav" onClick={handleInstallClick} style={{ color: "var(--violet)" }}>
+              <Smartphone size={16} /><span>Installer l’application</span>
+            </button>
           )}
           <button className="nav-item muted-nav" onClick={onOpenHelp}><BookOpen size={16} /><span>Centre d’aide</span><CircleHelp size={14} className="help-mark" /></button>
           <button className="nav-item muted-nav" onClick={onOpenSettings}><Settings2 size={16} /><span>Paramètres</span></button>
