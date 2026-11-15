@@ -27,13 +27,14 @@ Les données sont hébergées sur PostgreSQL (Supabase) avec deux tables princip
    - *RLS activée & forcée* (`FORCE ROW LEVEL SECURITY`) : seul l'utilisateur propriétaire (`auth.uid() = id`) peut lire ou modifier son profil.
 
 2. **`public.planner_boards`** :
-   - `id (text, PK)`
+   - `id (uuid, PK)`
    - `user_id (uuid, FK references auth.users(id) on delete cascade)`
    - `title (text, 1-100 caractères)`
-   - `kind (enum: university, weekly, monthly, daily, custom)`
-   - `color (hexadécimal)`
-   - `events (jsonb, validé par Zod)`
-   - `trashed (boolean)`
+   - `kind (enum: school, weekly, monthly, daily, blank)`
+   - `color (text, hexadécimal #rrggbb)`
+   - `events (jsonb, validé strictement par le validateur typé src/lib/board-validation.ts)`
+   - `favorite (boolean)`
+   - `is_deleted (boolean, corbeille avec restauration ou suppression définitive)`
    - `created_at`, `updated_at (timestamptz)`
    - *RLS activée & forcée* : `auth.uid() = user_id` sur toutes les opérations (SELECT, INSERT, UPDATE, DELETE).
 

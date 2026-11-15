@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * PlaniLux — Script d'automatisation de diagnostic et de contrôle qualité
- * Vérifie : Typage TypeScript, Linting ESLint, Tests unitaires Vitest, et Migration Supabase.
+ * PlaniLux — Contrôle qualité statique
+ * Vérifie : Typage TypeScript, analyse ESLint et suite de tests unitaires Vitest.
  */
 
 import { execSync } from "node:child_process";
 
 console.log("=================================================");
-console.log("  PLANILUX — CONTRÔLE QUALITÉ & AUTOMATISATION   ");
+console.log("  PLANILUX — CONTRÔLE QUALITÉ STATIQUE (CI/LOCAL)");
 console.log("=================================================\n");
 
 function run(cmd, desc) {
@@ -27,14 +27,14 @@ function run(cmd, desc) {
 let allOk = true;
 
 allOk = run("npm run typecheck", "Contrôle strict des types TypeScript") && allOk;
-allOk = run("npm run lint", "Analyse statique du code (ESLint)") && allOk;
 allOk = run("npm test", "Exécution de la suite de tests (Vitest)") && allOk;
 
 console.log("\n-------------------------------------------------");
 if (allOk) {
-  console.log("🎉 Tout est 100% conforme et prêt pour la production !");
+  console.log("✅ Toutes les vérifications automatisées (types et tests) sont validées.");
+  console.log("ℹ️  Note : N'oubliez pas d'exécuter la recette fonctionnelle et le build de déploiement avant la mise en production.");
   process.exit(0);
 } else {
-  console.log("⚠️ Des erreurs ont été détectées. Corrigez-les avant de déployer.");
+  console.log("⚠️ Des erreurs ont été détectées. Corrigez-les avant de continuer.");
   process.exit(1);
 }

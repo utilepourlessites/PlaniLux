@@ -30,6 +30,30 @@ describe("validateEvents", () => {
   it("refuse des heures mal formées", () => {
     expect(validateEvents([{ ...event, start: "8h30" }]).ok).toBe(false);
   });
+  it("refuse des heures impossibles (hors 00:00-23:59)", () => {
+    expect(validateEvents([{ ...event, start: "29:88" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, start: "12:60" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, start: "24:00" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, end: "25:00" }]).ok).toBe(false);
+  });
+  it("refuse un intervalle inversé ou nul (end <= start)", () => {
+    expect(validateEvents([{ ...event, start: "10:00", end: "09:00" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, start: "10:00", end: "10:00" }]).ok).toBe(false);
+  });
+  it("accepte des heures limites valides (00:00 et 23:59)", () => {
+    expect(validateEvents([{ ...event, start: "00:00", end: "23:59" }]).ok).toBe(true);
+  });
+  it("valide les dates réelles au format ISO (date, validFrom, validTo)", () => {
+    expect(validateEvents([{ ...event, date: "2026-02-30" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, date: "2026-02-28" }]).ok).toBe(true);
+    expect(validateEvents([{ ...event, validFrom: "2026-10-01", validTo: "2026-09-01" }]).ok).toBe(false);
+    expect(validateEvents([{ ...event, validFrom: "2026-09-01", validTo: "2026-10-01" }]).ok).toBe(true);
+  });
+  it("valide la récurrence (weekly ou none)", () => {
+    expect(validateEvents([{ ...event, recurrence: "weekly" }]).ok).toBe(true);
+    expect(validateEvents([{ ...event, recurrence: "none" }]).ok).toBe(true);
+    expect(validateEvents([{ ...event, recurrence: "monthly" }]).ok).toBe(false);
+  });
   it("refuse trop d'événements", () => {
     expect(validateEvents(Array.from({ length: MAX_EVENTS + 1 }, () => event)).ok).toBe(false);
   });

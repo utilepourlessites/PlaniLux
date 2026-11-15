@@ -274,10 +274,12 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
             >
               <Redo2 size={16} />
             </button>
-            <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
-              <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
-              {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
-            </span>
+            {syncStatus !== "idle" && (
+              <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
+                <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
+                {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
+              </span>
+            )}
             <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export (Ctrl+P)">
               <Printer size={15} /> Imprimer & Exporter
             </button>
@@ -351,10 +353,12 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
             </span>
           )}
 
-          <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
-            <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
-            {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
-          </span>
+          {syncStatus !== "idle" && (
+            <span className={`autosave-status ${syncStatus === "saving" ? "is-saving" : syncStatus === "error" ? "is-error" : ""}`} style={syncStatus === "error" ? { color: "#e53e3e" } : undefined}>
+              <i style={syncStatus === "error" ? { background: "#e53e3e" } : syncStatus === "saving" ? { background: "#ecc94b" } : undefined} />
+              {syncStatus === "saving" ? "Enregistrement…" : syncStatus === "error" ? "Non synchronisé" : "Enregistré"}
+            </span>
+          )}
           <button className="button-secondary export-quick" onClick={onOpenStudio} title="Accéder au Studio d’impression et d’export (Ctrl+P)">
             <Printer size={15} /> Imprimer & Exporter
           </button>

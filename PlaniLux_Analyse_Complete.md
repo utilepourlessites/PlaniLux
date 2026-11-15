@@ -1,5 +1,8 @@
 # PlaniLux — Analyse complète et plan d'action
 
+> [!NOTE]
+> **Document d'archive historique (1er novembre 2026)** : Ce document reflète l'état initial du projet avant la mise en place de l'authentification Supabase SSR, des politiques RLS complètes, de la validation serveur stricte et des correctifs de sécurité de novembre 2026.
+
 > **Projet analysé :** `planilux_Luna.zip` (application de planning / emploi du temps)
 > **Date de l'analyse :** 1er novembre 2026
 > **Objectif :** corriger l'impression, les exports (formats), les documents téléchargés, l'emploi du temps, l'organisation des boutons et des tableaux, puis **déployer sur GitHub + Vercel + Supabase depuis un agent IA**.

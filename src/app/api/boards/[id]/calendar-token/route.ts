@@ -33,7 +33,15 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: "Tableau introuvable" }, { status: 404 });
     }
 
-    const token = generateCalendarToken(id);
+    let token: string;
+    try {
+      token = generateCalendarToken(id);
+    } catch {
+      return NextResponse.json(
+        { error: "Configuration serveur incomplète pour la signature du calendrier (CALENDAR_SIGNING_SECRET ou SUPABASE_SERVICE_ROLE_KEY requis)." },
+        { status: 500 }
+      );
+    }
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "planilux.vercel.app";
     const proto = request.headers.get("x-forwarded-proto") || "https";
     const httpUrl = `${proto}://${host}/api/boards/${id}/calendar?token=${token}`;

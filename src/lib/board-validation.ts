@@ -3,11 +3,27 @@ import type { BoardKind, ScheduleEvent } from "./planner-types";
 export const BOARD_KINDS: readonly BoardKind[] = ["school", "weekly", "monthly", "daily", "blank"];
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const MAX_EVENTS = 2000;
-const TIME_REGEX = /^\d{1,2}:\d{2}$/;
+const TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
 const COLOR_REGEX = /^#[0-9a-f]{3,8}$/i;
+const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+
+export function isValidDateString(dateStr: string): boolean {
+  if (!DATE_REGEX.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+export function parseTimeMinutes(timeStr: string): number | null {
+  const match = TIME_REGEX.exec(timeStr);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return h * 60 + m;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -26,8 +42,17 @@ export function validateEvent(input: unknown): Result<ScheduleEvent> {
   if (typeof id !== "string" || id.length < 1 || id.length > 64) return fail("Identifiant d'événement invalide.");
   if (typeof title !== "string" || title.length > 200) return fail("Titre d'événement invalide.");
   if (typeof day !== "number" || !Number.isInteger(day) || day < 0 || day > 400) return fail("Jour d'événement invalide.");
-  if (typeof start !== "string" || !TIME_REGEX.test(start)) return fail("Heure de début invalide.");
-  if (typeof end !== "string" || !TIME_REGEX.test(end)) return fail("Heure de fin invalide.");
+
+  if (typeof start !== "string") return fail("Heure de début invalide.");
+  const startMin = parseTimeMinutes(start);
+  if (startMin === null) return fail("Heure de début invalide (format attendu HH:MM entre 00:00 et 23:59).");
+
+  if (typeof end !== "string") return fail("Heure de fin invalide.");
+  const endMin = parseTimeMinutes(end);
+  if (endMin === null) return fail("Heure de fin invalide (format attendu HH:MM entre 00:00 et 23:59).");
+
+  if (endMin <= startMin) return fail("L'heure de fin doit être strictement postérieure à l'heure de début.");
+
   if (typeof color !== "string" || color.length < 1 || color.length > 40) return fail("Couleur d'événement invalide.");
 
   const event: ScheduleEvent = { id, title, day, start, end, color };
@@ -39,6 +64,20 @@ export function validateEvent(input: unknown): Result<ScheduleEvent> {
     if (!parsed.ok) return parsed;
     if (parsed.value !== undefined) event[key] = parsed.value;
   }
+
+  if (event.date !== undefined && !isValidDateString(event.date)) {
+    return fail("Date d'événement invalide (format attendu YYYY-MM-DD).");
+  }
+  if (event.validFrom !== undefined && !isValidDateString(event.validFrom)) {
+    return fail("Date de début de validité invalide (format attendu YYYY-MM-DD).");
+  }
+  if (event.validTo !== undefined && !isValidDateString(event.validTo)) {
+    return fail("Date de fin de validité invalide (format attendu YYYY-MM-DD).");
+  }
+  if (event.validFrom && event.validTo && event.validFrom > event.validTo) {
+    return fail("La date de début de validité doit être antérieure ou égale à la date de fin.");
+  }
+
   if (input.recurrence !== undefined && input.recurrence !== null) {
     if (input.recurrence !== "weekly" && input.recurrence !== "none") return fail("Récurrence invalide.");
     event.recurrence = input.recurrence;
