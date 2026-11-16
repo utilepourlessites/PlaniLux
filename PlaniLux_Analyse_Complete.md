@@ -1,11 +1,21 @@
-# PlaniLux — Analyse complète et plan d'action
+# PlaniLux — Rapport d'analyse et historique d'évolution
 
-> [!NOTE]
-> **Document d'archive historique (1er novembre 2026)** : Ce document reflète l'état initial du projet avant la mise en place de l'authentification Supabase SSR, des politiques RLS complètes, de la validation serveur stricte et des correctifs de sécurité de novembre 2026.
+> [!IMPORTANT]
+> **Statut du document : Archive historique datée du 1er novembre 2026 — Actualisée au 16 novembre 2026.**  
+> Ce document conserve les constats initiaux de l'audit du 1er novembre 2026 à titre d'archive et de traçabilité.  
+> **État actuel du projet en production (16 novembre 2026) :**
+> - **Authentification complète & sessions SSR** : Gérée via `@supabase/ssr` avec cookies sécurisés et middleware proxy (`src/proxy.ts`). L'ancienne absence d'authentification est totalement résolue.
+> - **Sécurité par ligne (RLS)** : Activée et forcée sur toutes les tables (`profiles`, `planner_boards`) avec isolation étanche multi-tenant.
+> - **Validation stricte des données** : Validateur unifié (`src/lib/board-validation.ts`) couvrant horaires, dates, formats et intégrité.
+> - **Suppression de compte sécurisée** : Route atomique (`/api/account`) vérifiant les prérequis serveur avant toute action afin de prévenir toute suppression partielle.
+> - **Partage & export calendrier (ICS/webcal)** : Signatures HMAC (`CALENDAR_SIGNING_SECRET` / `SUPABASE_SERVICE_ROLE_KEY`), respect de la norme RFC 5545 (`VTIMEZONE`, `RRULE`, `DTSTAMP`).
+> - **Studio d'export & impression haute fidélité** : Moteur unifié (`sheet-layout.ts`, `exports.ts`), calcul automatique du contraste WCAG sur 16 couleurs, mise à l'échelle typographique (80 % à 130 %) et aperçu en direct fidèle.
+> - **Déploiement Vercel & Supabase** : Les instructions de déploiement à jour et la liste exacte des variables serveur sont consignées dans [`DEPLOIEMENT.md`](DEPLOIEMENT.md).
 
-> **Projet analysé :** `planilux_Luna.zip` (application de planning / emploi du temps)
-> **Date de l'analyse :** 1er novembre 2026
-> **Objectif :** corriger l'impression, les exports (formats), les documents téléchargés, l'emploi du temps, l'organisation des boutons et des tableaux, puis **déployer sur GitHub + Vercel + Supabase depuis un agent IA**.
+> **Projet analysé initialement :** `planilux_Luna.zip`  
+> **Date de l'audit initial :** 1er novembre 2026  
+> **Date de consolidation finale :** 16 novembre 2026  
+> **Objectif :** Résolution complète des défauts d'impression, d'export, d'éditeur, de sécurité et d'authentification.
 
 ---
 

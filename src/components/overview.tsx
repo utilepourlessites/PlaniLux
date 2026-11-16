@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import {
   ArrowRight, CalendarCheck2, CalendarDays, ChevronRight, Clock3, Plus, Sparkles, Zap, Check,
 } from "lucide-react";
-import { BOARD_KIND_LABELS } from "@/lib/planner-types";
+import { BOARD_KIND_LABELS, getReadableTextColor } from "@/lib/planner-types";
 import type { PlannerBoard } from "@/lib/planner-types";
 import type { PlannerView } from "@/components/planner-sidebar";
 
@@ -33,12 +33,13 @@ function MiniWeek({ board, onOpen }: { board: PlannerBoard; onOpen: () => void }
                 <span
                   key={ev.id}
                   className="mini-event-pill"
-                  style={{ background: ev.color }}
+                  style={{ background: ev.color, color: getReadableTextColor(ev.color) }}
                   title={`${ev.title} (${ev.start} - ${ev.end})`}
                 >
-                  {ev.title}
+                  <strong>{ev.title}</strong>
+                  <small>{ev.start}–{ev.end}</small>
                 </span>
-              )) : <span className="mini-empty-dot" />}
+              )) : <span className="mini-empty-dot">Libre</span>}
             </div>
           </div>
         );

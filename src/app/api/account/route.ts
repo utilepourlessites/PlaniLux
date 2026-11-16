@@ -16,6 +16,18 @@ export async function DELETE() {
 
     if (userError || !user) return unauthorized();
 
+    // 0. Vérification préalable de la configuration serveur (évite toute suppression partielle si la clé manque)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY manquant pour la suppression du compte auth.");
+      return NextResponse.json(
+        { error: "Configuration serveur incomplète (SUPABASE_SERVICE_ROLE_KEY requis pour la suppression complète du compte)." },
+        { status: 500 }
+      );
+    }
+
     // 1. Supprimer tous les plannings de l'utilisateur
     const { error: boardsError } = await supabase
       .from("planner_boards")
@@ -39,17 +51,6 @@ export async function DELETE() {
     }
 
     // 3. Supprimer définitivement l'utilisateur auth.users via Supabase Admin
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.error("SUPABASE_SERVICE_ROLE_KEY manquant pour la suppression du compte auth.");
-      return NextResponse.json(
-        { error: "Configuration serveur incomplète (SUPABASE_SERVICE_ROLE_KEY requis pour la suppression complète du compte)." },
-        { status: 500 }
-      );
-    }
-
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });

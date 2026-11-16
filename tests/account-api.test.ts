@@ -89,16 +89,16 @@ describe("DELETE /api/account", () => {
     expect(body.error).toContain("profil");
   });
 
-  it("retourne 500 si la clé de service SUPABASE_SERVICE_ROLE_KEY est manquante", async () => {
+  it("retourne 500 si la clé de service SUPABASE_SERVICE_ROLE_KEY est manquante sans effectuer de suppression partielle", async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     mockGetUser.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
-    mockDeletePlannerBoards.mockResolvedValueOnce({ error: null });
-    mockDeleteProfiles.mockResolvedValueOnce({ error: null });
 
     const response = await DELETE();
     expect(response.status).toBe(500);
     const body = await response.json();
     expect(body.error).toContain("SUPABASE_SERVICE_ROLE_KEY");
+    expect(mockDeletePlannerBoards).not.toHaveBeenCalled();
+    expect(mockDeleteProfiles).not.toHaveBeenCalled();
   });
 
   it("appelle admin.deleteUser et supprime définitivement l'utilisateur", async () => {

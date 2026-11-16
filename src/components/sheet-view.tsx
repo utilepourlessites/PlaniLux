@@ -4,6 +4,7 @@ import React from "react";
 import { Sparkles } from "lucide-react";
 import type { SheetModel } from "@/lib/sheet-layout";
 import type { ExportOptions } from "@/lib/exports";
+import { getReadableTextColor } from "@/lib/planner-types";
 
 type SheetViewProps = {
   model: SheetModel;
@@ -33,7 +34,7 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
       <div
         ref={previewRef}
         className={`export-paper sheet-unified ${fontClass} ${isPureWhite ? "paper-pure-white" : ""} ${isPhone ? "export-paper-phone" : ""}`}
-        style={{ aspectRatio: ratio }}
+        style={{ aspectRatio: ratio, "--export-font-scale": options.fontScale / 100 } as React.CSSProperties}
       >
         <div className="export-paper-header">
           <div>
@@ -74,10 +75,11 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
                         style={{
                           backgroundColor: isPureWhite ? "#f2eff7" : event.color,
                           borderLeftColor: event.color,
+                          color: isPureWhite ? "#20202a" : getReadableTextColor(event.color),
                         }}
                       >
-                        {options.showTimes && <span className="chip-time">{event.start}</span>}
-                        <strong className="chip-title">{event.title}</strong>
+                        {options.showTimes && <span className="chip-time" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>{event.start}</span>}
+                        <strong className="chip-title" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>{event.title}</strong>
                       </div>
                     ))}
                     {extraCount > 0 && (
@@ -106,7 +108,7 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
     <div
       ref={previewRef}
       className={`export-paper sheet-unified ${fontClass} ${isPureWhite ? "paper-pure-white" : ""} ${isPhone ? "export-paper-phone" : ""}`}
-      style={{ aspectRatio: ratio }}
+      style={{ aspectRatio: ratio, "--export-font-scale": options.fontScale / 100 } as React.CSSProperties}
     >
       <div className="export-paper-header">
         <div>
@@ -184,16 +186,16 @@ export function SheetView({ model, options, previewRef }: SheetViewProps) {
                       >
                         <div className="sheet-event-content">
                           {options.showTimes && (
-                            <span className="sheet-event-time">
+                            <span className="sheet-event-time" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>
                               {event.start} – {event.end}
                             </span>
                           )}
-                          <strong className="sheet-event-title">{event.title}</strong>
+                          <strong className="sheet-event-title" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>{event.title}</strong>
                           {event.location && event.heightPercent > 7 && (
-                            <small className="sheet-event-location">{event.location}</small>
+                            <small className="sheet-event-location" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>{event.location}</small>
                           )}
                           {event.teacher && event.heightPercent > 10 && (
-                            <small className="sheet-event-teacher">{event.teacher}</small>
+                            <small className="sheet-event-teacher" style={{ color: isPureWhite ? "#20202a" : getReadableTextColor(event.color) }}>{event.teacher}</small>
                           )}
                         </div>
                       </div>

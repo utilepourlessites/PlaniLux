@@ -75,7 +75,7 @@ export function PlannerSidebar({
   return (
     <>
       <button className={`mobile-scrim ${open ? "is-visible" : ""}`} aria-label="Fermer le menu" onClick={onClose} />
-      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
+      <aside id="planner-mobile-sidebar" className={`sidebar ${open ? "sidebar-open" : ""}`} aria-label="Menu principal">
         <div className="brand-row">
           <button onClick={() => navigate("overview")} className="brand-row-button" title="Retour à la vue d’ensemble">
             <div className="brand-mark">

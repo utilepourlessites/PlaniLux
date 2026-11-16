@@ -9,7 +9,7 @@ import {
 import { EventDialog } from "@/components/event-dialog";
 import { MonthlyPlanner } from "@/components/monthly-planner";
 import { getHourRange, layoutDayEvents, minutesFromTime } from "@/lib/sheet-layout";
-import type { PlannerBoard, ScheduleEvent } from "@/lib/planner-types";
+import { getReadableTextColor, type PlannerBoard, type ScheduleEvent } from "@/lib/planner-types";
 
 const dayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const baseHourHeight: Record<string, number> = { Normal: 62, Compact: 46, "Ultra-compact": 34 };
@@ -149,13 +149,15 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
   );
   const sortedEvents = [...visibleEvents].sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
 
-  const addEventAt = (day: number, hour: number) => {
+  const addEventAt = useCallback((day: number, hour: number) => {
     const start = `${String(hour).padStart(2, "0")}:00`;
     setAddDefaults({ day, start });
     setEditing({ id: "", title: "", day, start, end: `${String(hour + 1).padStart(2, "0")}:00`, color: "#e8e5ff" });
-  };
+  }, []);
 
-  const startNew = () => addEventAt(selectedDay, Math.max(hourStart, 9));
+  const startNew = useCallback(() => {
+    addEventAt(selectedDay, Math.max(hourStart, 9));
+  }, [addEventAt, selectedDay, hourStart]);
 
   const saveEvent = (event: ScheduleEvent) => {
     if (event.end <= event.start) {
@@ -230,7 +232,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo, onOpenStudio, editing]);
+  }, [handleUndo, handleRedo, onOpenStudio, editing, startNew]);
 
   if (board.kind === "monthly") {
     return (
@@ -504,6 +506,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
                               left: `calc(${leftPct}% + 2px)`,
                               width: `calc(${widthPct}% - 4px)`,
                               background: event.color,
+                              color: getReadableTextColor(event.color),
                               "--event-accent": event.color,
                               outline: isConflicting ? "2px solid #f59e0b" : undefined,
                             } as React.CSSProperties}
@@ -587,6 +590,7 @@ export function ScheduleEditor({ board, onBoardChange, onBack, onOpenStudio, onE
                                       className={`matrix-event-btn ${!isStart ? "matrix-event-continuation" : ""} ${isConflicting ? "has-conflict" : ""}`}
                                       style={{
                                         background: event.color,
+                                        color: getReadableTextColor(event.color),
                                         outline: isConflicting && isStart ? "2px solid #f59e0b" : undefined,
                                       }}
                                       onClick={() => setEditing(event)}

@@ -1,4 +1,4 @@
-import type { PlannerBoard } from "@/lib/planner-types";
+import { getReadableTextColor, type PlannerBoard } from "@/lib/planner-types";
 import type { Paragraph, Table, TableRow, TableCell } from "docx";
 import {
   buildSheetModel,
@@ -17,12 +17,17 @@ export type ExportOptions = {
   showTimes: boolean;
   showLogo: boolean;
   font: "Sans" | "Serif" | "Mono";
+  fontScale: number;
 };
 
 export const TARGET_WALLPAPER = {
   phone: { w: 1080, h: 1920 },
   desktop: { w: 1920, h: 1080 },
 };
+
+function scaledFontSize(size: number, scale: number): number {
+  return Math.max(4, Math.round(size * scale / 100));
+}
 
 function splitTextLines(docInstance: any, text: string, maxW: number): string[] {
   if (typeof docInstance.splitTextToSize === "function") {
@@ -81,14 +86,14 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
   if (options.showTitle) {
     doc.setTextColor(36, 40, 53);
     doc.setFont(font, "bold");
-    doc.setFontSize(isWallpaper ? 14 : 18);
+    doc.setFontSize(scaledFontSize(isWallpaper ? 14 : 18, options.fontScale));
     const maxTitleW = pageWidth - margin * 2 - (options.showLogo ? 30 : 0);
     const titleLines = splitTextLines(doc, board.title, maxTitleW);
     doc.text(titleLines.slice(0, 2).join("\n"), margin, isWallpaper ? 11 : 16);
 
     if (options.showDates) {
       doc.setFont(font, "normal");
-      doc.setFontSize(isWallpaper ? 6.5 : 8);
+      doc.setFontSize(scaledFontSize(isWallpaper ? 6.5 : 8, options.fontScale));
       doc.setTextColor(120, 116, 130);
       const subY = isWallpaper ? 16 : 22;
       doc.text(model.subtitle.toUpperCase(), margin, subY);
@@ -97,7 +102,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
   if (options.showLogo) {
     doc.setFont(font, "bold");
-    doc.setFontSize(isWallpaper ? 7 : 8.5);
+    doc.setFontSize(scaledFontSize(isWallpaper ? 7 : 8.5, options.fontScale));
     doc.setTextColor(130, 115, 180);
     doc.text("PlaniLux", pageWidth - margin, isWallpaper ? 11 : 16, { align: "right" });
   }
@@ -118,7 +123,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
       doc.setFillColor(246, 244, 250);
       doc.roundedRect(x, top, colW, headerH, 1, 1, "F");
       doc.setFont(font, "bold");
-      doc.setFontSize(isWallpaper ? 5.5 : 7.5);
+      doc.setFontSize(scaledFontSize(isWallpaper ? 5.5 : 7.5, options.fontScale));
       doc.setTextColor(80, 75, 92);
       doc.text(weekdays[c].slice(0, 3).toUpperCase(), x + colW / 2, top + 4, { align: "center" });
     }
@@ -143,7 +148,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
         // Numéro du jour
         doc.setFont(font, "bold");
-        doc.setFontSize(isWallpaper ? 5 : 7);
+        doc.setFontSize(scaledFontSize(isWallpaper ? 5 : 7, options.fontScale));
         doc.setTextColor(cell.isToday ? 110 : 80, cell.isToday ? 80 : 75, cell.isToday ? 170 : 90);
         doc.text(String(cell.dayNumber), x + colW - 2, y + 3.5, { align: "right" });
 
@@ -157,8 +162,9 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
           doc.roundedRect(x + 1, eventY, colW - 2, 3.8, 0.5, 0.5, "F");
 
           doc.setFont(font, "bold");
-          doc.setFontSize(isWallpaper ? 4 : 5.5);
-          doc.setTextColor(40, 38, 48);
+          doc.setFontSize(scaledFontSize(isWallpaper ? 4 : 5.5, options.fontScale));
+          const textColor = options.whiteBackground ? "#20202a" : getReadableTextColor(ev.color);
+          doc.setTextColor(textColor === "#ffffff" ? 255 : 32, textColor === "#ffffff" ? 255 : 32, textColor === "#ffffff" ? 255 : 42);
           const timeText = options.showTimes ? `${ev.start} ` : "";
           const fullText = `${timeText}${ev.title}`;
           const truncated = splitTextLines(doc, fullText, colW - 4)[0] || "";
@@ -169,7 +175,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
         if (cell.events.length > maxEvents) {
           doc.setFont(font, "normal");
-          doc.setFontSize(4.5);
+          doc.setFontSize(scaledFontSize(4.5, options.fontScale));
           doc.setTextColor(140, 130, 155);
           doc.text(`+${cell.events.length - maxEvents}`, x + 2, eventY + 2.5);
         }
@@ -192,7 +198,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
       const h = hours[i];
       const y = top + i * hourStep;
       doc.setFont(font, "normal");
-      doc.setFontSize(isWallpaper ? 5 : 6.8);
+      doc.setFontSize(scaledFontSize(isWallpaper ? 5 : 6.8, options.fontScale));
       doc.setTextColor(130, 126, 140);
       doc.text(`${String(h).padStart(2, "0")}:00`, margin + timeColWidth - 1.5, y + 1.2, { align: "right" });
 
@@ -214,7 +220,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
       // En-tête de jour (Point E-2b)
       doc.setFont(font, "bold");
-      doc.setFontSize(isWallpaper ? 5.5 : 7.5);
+      doc.setFontSize(scaledFontSize(isWallpaper ? 5.5 : 7.5, options.fontScale));
       doc.setTextColor(70, 65, 80);
       const headLabel = `${col.shortLabel} ${options.showDates && col.date ? col.date : ""}`;
       doc.text(headLabel, x + dayWidth / 2, top - 2.5, { align: "center" });
@@ -240,24 +246,35 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
         // Texte du cours (Points E-2d, E-2e, E-2f)
         doc.setFont(font, "bold");
-        doc.setFontSize(isWallpaper ? 4.5 : Math.max(6.8, Math.min(8.5, subWidth * 0.45)));
-        doc.setTextColor(30, 28, 38);
+        doc.setFontSize(scaledFontSize(isWallpaper ? 4.5 : Math.max(6.8, Math.min(8.5, subWidth * 0.45)), options.fontScale));
+        const textColor = options.whiteBackground ? "#20202a" : getReadableTextColor(event.color);
+        doc.setTextColor(textColor === "#ffffff" ? 255 : 32, textColor === "#ffffff" ? 255 : 32, textColor === "#ffffff" ? 255 : 42);
 
         const textMaxW = subWidth - 2.5;
         const titleLines = splitTextLines(doc, event.title, textMaxW);
         doc.text(titleLines[0] || "", subLeft + 1.8, eventTop + 2.6);
 
+        const isDarkCard = !options.whiteBackground && textColor === "#ffffff";
+
         if (options.showTimes && eventH > 6) {
           doc.setFont(font, "normal");
-          doc.setFontSize(isWallpaper ? 3.8 : 5.8);
-          doc.setTextColor(85, 80, 95);
+          doc.setFontSize(scaledFontSize(isWallpaper ? 3.8 : 5.8, options.fontScale));
+          if (isDarkCard) {
+            doc.setTextColor(230, 225, 240);
+          } else {
+            doc.setTextColor(85, 80, 95);
+          }
           doc.text(`${event.start}–${event.end}`, subLeft + 1.8, eventTop + 5.2);
         }
 
         if (event.location && eventH > 10) {
           doc.setFont(font, "normal");
-          doc.setFontSize(isWallpaper ? 3.5 : 5.2);
-          doc.setTextColor(115, 110, 125);
+          doc.setFontSize(scaledFontSize(isWallpaper ? 3.5 : 5.2, options.fontScale));
+          if (isDarkCard) {
+            doc.setTextColor(205, 200, 220);
+          } else {
+            doc.setTextColor(115, 110, 125);
+          }
           const locLine = splitTextLines(doc, event.location, textMaxW)[0] || "";
           doc.text(locLine, subLeft + 1.8, eventTop + 7.8);
         }
@@ -267,7 +284,7 @@ export async function downloadPdf(board: PlannerBoard, options: ExportOptions) {
 
   // Pied de page
   doc.setFont(font, "normal");
-  doc.setFontSize(isWallpaper ? 4.5 : 6.5);
+  doc.setFontSize(scaledFontSize(isWallpaper ? 4.5 : 6.5, options.fontScale));
   doc.setTextColor(140, 136, 150);
   doc.text("PlaniLux · Vos journées, composées avec soin.", margin, pageHeight - margin + 3.5);
 
@@ -296,6 +313,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
   const model = buildSheetModel(board, options);
   const isPortrait = options.orientation === "portrait";
 
+  const docxFontSize = (size: number) => Math.max(8, Math.round(size * options.fontScale / 100));
   const fontName = options.font === "Serif" ? "Georgia" : options.font === "Mono" ? "Consolas" : "Arial";
 
   const children: (Paragraph | Table)[] = [];
@@ -320,7 +338,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
             text: model.subtitle,
             italics: true,
             color: "666666",
-            size: 20,
+            size: docxFontSize(20),
           }),
         ],
         alignment: AlignmentType.CENTER,
@@ -341,7 +359,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
             shading: { fill: "F3F1F8" },
             children: [
               new Paragraph({
-                children: [new TextRun({ text: day, bold: true, size: 18 })],
+                children: [new TextRun({ text: day, bold: true, size: docxFontSize(18) })],
                 alignment: AlignmentType.CENTER,
               }),
             ],
@@ -367,7 +385,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
         } else {
           const paras: Paragraph[] = [
             new Paragraph({
-              children: [new TextRun({ text: String(cell.dayNumber), bold: true, size: 18, color: "555555" })],
+              children: [new TextRun({ text: String(cell.dayNumber), bold: true, size: docxFontSize(18), color: "555555" })],
               alignment: AlignmentType.RIGHT,
               spacing: { after: 40 },
             }),
@@ -377,8 +395,8 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
             paras.push(
               new Paragraph({
                 children: [
-                  ...(options.showTimes ? [new TextRun({ text: `${ev.start} `, size: 14, bold: true })] : []),
-                  new TextRun({ text: ev.title, size: 15 }),
+                  ...(options.showTimes ? [new TextRun({ text: `${ev.start} `, size: docxFontSize(14), bold: true })] : []),
+                  new TextRun({ text: ev.title, size: docxFontSize(15) }),
                 ],
                 spacing: { after: 30 },
               })
@@ -410,7 +428,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
         new TableCell({
           width: { size: 12, type: WidthType.PERCENTAGE },
           shading: { fill: "F0EEF5" },
-          children: [new Paragraph({ children: [new TextRun({ text: "Horaires", bold: true, size: 18 })], alignment: AlignmentType.CENTER })],
+          children: [new Paragraph({ children: [new TextRun({ text: "Horaires", bold: true, size: docxFontSize(18) })], alignment: AlignmentType.CENTER })],
         }),
         ...model.columns.map(
           (col) =>
@@ -420,7 +438,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
               children: [
                 new Paragraph({
                   children: [
-                    new TextRun({ text: col.label, bold: true, size: 18 }),
+                    new TextRun({ text: col.label, bold: true, size: docxFontSize(18) }),
                     ...(options.showDates && col.date ? [new TextRun({ text: ` (${col.date})`, size: 16, color: "777777" })] : []),
                   ],
                   alignment: AlignmentType.CENTER,
@@ -444,7 +462,7 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
         new TableCell({
           width: { size: 12, type: WidthType.PERCENTAGE },
           shading: { fill: "FAF9FC" },
-          children: [new Paragraph({ children: [new TextRun({ text: timeLabel, size: 16, color: "666666" })], alignment: AlignmentType.CENTER })],
+          children: [new Paragraph({ children: [new TextRun({ text: timeLabel, size: docxFontSize(16), color: "666666" })], alignment: AlignmentType.CENTER })],
         }),
       ];
 
@@ -457,9 +475,9 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
           paras.push(
             new Paragraph({
               children: [
-                new TextRun({ text: `${ev.title} `, bold: true, size: 16 }),
+                new TextRun({ text: `${ev.title} `, bold: true, size: docxFontSize(16) }),
                 ...(options.showTimes ? [new TextRun({ text: `(${ev.start}–${ev.end})`, size: 14, color: "777777" })] : []),
-                ...(detail ? [new TextRun({ text: ` · ${detail}`, size: 14, italics: true, color: "888888" })] : []),
+                ...(detail ? [new TextRun({ text: ` · ${detail}`, size: docxFontSize(14), italics: true, color: "888888" })] : []),
               ],
               spacing: { after: 40 },
             })
@@ -519,8 +537,8 @@ export async function downloadDocx(board: PlannerBoard, options: ExportOptions) 
             children: [
               new Paragraph({
                 children: [
-                  new TextRun({ text: "PlaniLux · Page ", size: 16, color: "888888" }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 16, color: "888888" }),
+                  new TextRun({ text: "PlaniLux · Page ", size: docxFontSize(16), color: "888888" }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: docxFontSize(16), color: "888888" }),
                 ],
                 alignment: AlignmentType.RIGHT,
               }),

@@ -396,7 +396,7 @@ export function PlannerApp() {
       <main className="main-panel">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu">
+            <button className="icon-button mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Ouvrir le menu" aria-expanded={menuOpen} aria-controls="planner-mobile-sidebar">
               <Menu size={19} />
             </button>
             <div className="breadcrumbs">

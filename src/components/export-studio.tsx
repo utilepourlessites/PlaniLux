@@ -26,6 +26,7 @@ const defaultOptions: ExportOptions = {
   showTimes: true,
   showLogo: true,
   font: "Sans",
+  fontScale: 100,
 };
 
 function OptionToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (next: boolean) => void }) {
@@ -88,7 +89,7 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
   };
 
   return (
-    <div className="studio-page" style={{ "--print-height": printHeight } as React.CSSProperties}>
+    <div className="studio-page" style={{ "--print-height": printHeight, "--export-font-scale": options.fontScale / 100 } as React.CSSProperties}>
       <div className="studio-heading">
         <div>
           <button className="back-link" onClick={onBack}>
@@ -105,6 +106,12 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
         </div>
 
         <div className="studio-heading-actions">
+          <button
+            className="button-quiet"
+            onClick={() => document.getElementById("studio-print-preview")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            <FileText size={14} /> Aperçu avant impression
+          </button>
           <button className="button-quiet" onClick={() => setOptions(defaultOptions)}>
             <RefreshCw size={14} /> Réinitialiser
           </button>
@@ -217,6 +224,12 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
               </select>
               <ChevronDown size={14} />
             </label>
+            <label className="font-scale-control">
+              <span>Taille des textes</span>
+              <strong>{options.fontScale}%</strong>
+              <input type="range" min="80" max="130" step="10" value={options.fontScale} onChange={(event) => change({ fontScale: Number(event.target.value) })} aria-label="Taille des textes de l’aperçu et des exports" />
+              <small>Réglez la taille puis vérifiez le résultat dans l’aperçu avant impression.</small>
+            </label>
           </section>
 
           <div className="studio-tip">
@@ -228,7 +241,7 @@ export function ExportStudio({ board, onBack, onToast }: { board: PlannerBoard; 
           </div>
         </aside>
 
-        <section className="studio-preview-panel">
+        <section className="studio-preview-panel" id="studio-print-preview">
           <div className="preview-panel-heading">
             <div>
               <div className="section-eyebrow">APERÇU DU DOCUMENT</div>

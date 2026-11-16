@@ -80,7 +80,7 @@ export function LoginView({ initialMode = "login", initialError }: { initialMode
         if (error) { setNotice({ kind: "error", text: friendlyAuthError(error.code) }); return; }
         if (!data.session) {
           // Confirmation par e-mail requise : pas de session tant que le lien n’est pas ouvert.
-          setNotice({ kind: "info", text: "Compte créé. Vérifiez votre boîte mail et cliquez sur le lien de confirmation pour vous connecter." });
+          setNotice({ kind: "info", text: "Compte créé. La connexion sera disponible dès que votre compte sera activé." });
           return;
         }
       } else {

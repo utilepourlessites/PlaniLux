@@ -26,6 +26,7 @@ function run(cmd, desc) {
 
 let allOk = true;
 
+allOk = run("npm run lint", "Analyse statique et règles de style (ESLint)") && allOk;
 allOk = run("npm run typecheck", "Contrôle strict des types TypeScript") && allOk;
 allOk = run("npm test", "Exécution de la suite de tests (Vitest)") && allOk;
 

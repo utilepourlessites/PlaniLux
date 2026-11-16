@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { EventDialog } from "@/components/event-dialog";
-import type { PlannerBoard, ScheduleEvent } from "@/lib/planner-types";
+import { getReadableTextColor, type PlannerBoard, type ScheduleEvent } from "@/lib/planner-types";
 
 const weekdays = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
@@ -59,7 +59,7 @@ export function MonthlyPlanner({ board, onEventSave, onEventDelete, onToast }: {
             const isToday = today.getFullYear() === year && today.getMonth() === monthIndex && today.getDate() === day;
             return <div className={`month-day-cell ${isToday ? "month-day-today" : ""}`} role="gridcell" key={date}>
               <button className="month-day-trigger" aria-label={`Ajouter une note le ${day} ${monthLabel}`} onClick={() => addForDate(date)}><span className={isToday ? "month-today-number" : ""}>{day}</span><Plus size={13} /></button>
-              <div className="month-day-events">{entries.slice(0, 3).map((event) => <button className="month-event-chip" key={event.id} style={{ background: event.color }} title={`${event.start} · ${event.title}`} onClick={() => { setNewDate(date); setEditing(event); }}><span>{event.start}</span><strong>{event.title}</strong></button>)}{entries.length > 3 && <span className="month-more-events">+ {entries.length - 3} de plus</span>}</div>
+              <div className="month-day-events">{entries.slice(0, 3).map((event) => <button className="month-event-chip" key={event.id} style={{ background: event.color, color: getReadableTextColor(event.color) }} title={`${event.start} · ${event.title}`} onClick={() => { setNewDate(date); setEditing(event); }}><span>{event.start}</span><strong>{event.title}</strong></button>)}{entries.length > 3 && <span className="month-more-events">+ {entries.length - 3} de plus</span>}</div>
             </div>;
           })}
         </div>

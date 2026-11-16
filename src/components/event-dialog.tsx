@@ -130,7 +130,7 @@ export function EventDialog({ event, initialDay, initialStart, initialDate, mont
           <textarea className="text-input" rows={2} maxLength={300} value={draft.notes ?? ""} onChange={(input) => change({ notes: input.target.value })} placeholder="Un détail à garder en tête…" />
         </label>
         <div className="dialog-actions event-dialog-actions">
-          {event && <button type="button" className="icon-danger-button" aria-label="Supprimer le créneau" title="Supprimer" onClick={() => onDelete(event.id)}><Trash2 size={17} /></button>}
+          {event && <button type="button" className="icon-danger-button" aria-label="Supprimer le créneau" title="Supprimer ce créneau" onClick={() => onDelete(event.id)}><Trash2 size={17} /><span>Supprimer le créneau</span></button>}
           <button type="button" className="button-quiet" onClick={onClose}>Annuler</button>
           <button type="submit" className="button-primary">{event ? "Enregistrer" : "Ajouter au planning"}</button>
         </div>

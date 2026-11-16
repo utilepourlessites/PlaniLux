@@ -77,11 +77,10 @@ npm run dev
 
 ### Variables d'environnement (`.env.example`)
 
-- `NEXT_PUBLIC_SUPABASE_URL` : URL de votre projet Supabase
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` : Clé publique anon Supabase
-- `DATABASE_URL` : Chaîne de connexion PostgreSQL (pooler ou direct)
-- `DIRECT_URL` : Connexion directe pour les migrations
-- `SUPABASE_SERVICE_ROLE_KEY` : Clé d'administration serveur (nécessaire pour la suppression définitive de compte)
+- `NEXT_PUBLIC_SUPABASE_URL` : URL de votre projet Supabase (`https://<projet>.supabase.co`)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` : Clé publique / publishable Supabase
+- `SUPABASE_SERVICE_ROLE_KEY` : Clé d'administration serveur (nécessaire pour la suppression définitive de compte `auth.admin.deleteUser` et la lecture serveur sécurisée des flux calendriers)
+- `CALENDAR_SIGNING_SECRET` : Clé secrète serveur pour la signature HMAC des jetons de partage de calendrier (ICS/webcal)
 
 ---
 
